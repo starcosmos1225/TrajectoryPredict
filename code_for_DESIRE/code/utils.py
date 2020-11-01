@@ -6,10 +6,9 @@ from torch.autograd import Variable
 import torch.nn.functional as func 
 import numpy as np
 import os
-train_dir = "/home/hxy/Documents/code_for_DESIRE/data/train/"
 trajector_dir = "trajectory/"
 image_dir = "merged_data/"
-def load_data():
+def load_data(train_dir):
   '''
   return:
     trajectory_x:list[]->(n,2,20)

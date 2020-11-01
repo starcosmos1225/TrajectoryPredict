@@ -24,11 +24,12 @@ def main():
     parser.add_argument('--frequent', type=int, default=10,
                         help='the frequent of frame')
     parser.add_argument('--save_dir', default='model/saved/')
+    parser.add_argument('--file_dir', default='/home/hxy/Documents/code_for_DESIRE/data/train/')
     cfg = parser.parse_args()
     train(cfg)
 
 def train(cfg):
-  train_data_x, train_data_y, train_img = load_data()
+  train_data_x, train_data_y, train_img = load_data(file_dir)
   device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
   model = Model(sample_number=cfg.nums_sample,hz=cfg.frequent,device=device)
   model.to(device)
