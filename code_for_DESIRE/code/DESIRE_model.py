@@ -27,42 +27,44 @@ class Model(nn.Module):
   def forward(self, trajectory_data_x,trajectory_data_y,image_data):
     '''
     input:
-    trajectory_data_x: a tensor with shape (n,2,20) n is the numbers of object
-    trajectory_data_y: a tensor with shape (n,2,40) n is the numbers of object
+    trajectory_data_x: a tensor with shape (batch_size,10,2,20) 
+    trajectory_data_y: a tensor with shape (batch_size,10,2,40) 
     image_data: a tensor with shape (batch_size,4,160,160)
     return:
       Y_path:the K paths with cell(K,40, n, 2)
       deltaY:the K delta path with cell(K,40, n, 2)
       scores:the K paths' scores with cell(K,n, 1)
     '''
-    sequence_x = trajectory_data_x.shape[2]
-    sequence_y = trajectory_data_y.shape[2]
+    sequence_x = trajectory_data_x.shape[3]
+    sequence_y = trajectory_data_y.shape[3]
     current_location = trajectory_data_x[:,:,-1].detach()
     # cnn feature map （batch_size,4,160,160）->(batch_size,32,80,80)
     feature_map = self.cnn_map(image_data)
     # Encoder 1 and 2
-    # Hx :(n,2,20)->(n,16,20)
-    Hx = self.rnn_encoder1(trajectory_data_x)
-    # (n,16,20)->(20,n,16)
+    # Hx :(batch_size,10,2,20)->(batch_size,10,16,20)
+    Hx = self.rnn_encoder1(trajectory_data_x.view(-1,trajectory_data_x.shape[2],trajectory_data_x.shape[3]))
+    # (batch_size*n,16,20)->(20,batch_size*n,16)
     Hx = Hx.permute(2,0,1)
-    # (20,n,16)->(20,n,48)
+    # (20,batch_size*n,16)->(20,batch_size*n,48)
     Hx,h_n_x = self.encoder1_gru(Hx)
+    # (batch_size*n,48)
     new_Hx = Hx[-1]
     # Hy :(n,2,40)->(n,16,40)
-    Hy = self.rnn_encoder2(trajectory_data_y)
+    Hy = self.rnn_encoder2(trajectory_data_y.view(-1,trajectory_data_y.shape[2],trajectory_data_y.shape[3]))
     Hy = Hy.permute(2,0,1)
-    # (40,n,16)->(40,n,48)
+    # (40,batch_size*n,16)->(40,batch_size*n,48)
     Hy,h_n_y = self.encoder2_gru(Hy)
+    # (batch_size*n,48)
     new_Hy = Hy[-1]
-    # Hxy :(n,48)+(n,48)->(n,96)
+    # Hxy :(batch_size*n,48)+(batch_size*n,48)->(batch_size*n,96)
     Hxy = torch.cat((new_Hx,new_Hy),1)
     # CVAE
-    # Hc:(n,96)->(n,48)
+    # Hc:(batch_size*n,96)->(batch_size*n,48)
     Hc = self.fc1(Hxy)
     size_n = Hc.shape
-    # H_miu:(n,48)->(n,48)
+    # H_miu:(batch_size*n,48)->(batch_size*n,48)
     H_miu = self.fc2(Hc)
-    # H_delta:(n,48)->(n,48)
+    # H_delta:(batch_size*n,48)->(batch_size*n,48)
     H_delta = self.fc3(Hc)
     # sample k paths
     Y_path = torch.zeros((self.K,trajectory_data_y.shape[2],trajectory_data_y.shape[0],trajectory_data_y.shape[1])).to(self.device)
@@ -72,17 +74,17 @@ class Model(nn.Module):
     scores = torch.zeros((self.K,trajectory_data_y.shape[0],1)).to(self.device)
     delta_Y_list = torch.zeros(((self.K,trajectory_data_y.shape[2],trajectory_data_y.shape[0],trajectory_data_y.shape[1]))).to(self.device)
     for i in range(self.K):
-      #(n,48)
+      #(batch_size*n,48)
       normalize = torch.randn(size_n).to(self.device)
-      #z_i:(n,48)
+      #z_i:(batch_size*n,48)
       z_i = H_delta.mul(normalize)+H_miu
       # Z.append(z_i)
-      #beta_z:(n,48)
+      #beta_z:(batch_size*n,48)
       beta_z = self.fc4(z_i)
       # mask
-      # xz_i:(n,48)
+      # xz_i:(batch_size*n,48)
       xz_i = new_Hx.mul(beta_z)
-      # padding 0 for gru input:(n,48)->(40,n,48)
+      # padding 0 for gru input:(batch_size*n,48)->(40,batch_size*n,48)
       xz = torch.zeros((sequence_y,size_n[0],size_n[1])).to(self.device)
       xz[0] = xz_i
       # reconstruction
@@ -176,9 +178,9 @@ class Model(nn.Module):
   def train(self, trajectory_data_x,trajectory_data_y,image_data):
     '''
     input:
-    trajectory_data_x: a tensor with shape (n,2,20) n is the numbers of object
-    trajectory_data_y: a tensor with shape (n,2,40) n is the numbers of object
-    image_data: a tensor with shape (160,160,4)
+    trajectory_data_x: a tensor with shape (batch_size,10,2,20)
+    trajectory_data_y: a tensor with shape (batch_size,10,2,40)
+    image_data: a tensor with shape (batch_size,160,160,4)
     '''
     # print("begin train")
     # predict_path:(K,40, n, 2)
