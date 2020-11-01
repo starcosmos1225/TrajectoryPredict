@@ -35,7 +35,7 @@ class GRUCell(nn.Module):
         # type: (Tensor, Tuple[Tensor, Tensor]) -> Tuple[Tensor, Tuple[Tensor, Tensor]]
         rt = torch.sigmoid(torch.mm(input_x,self.weight_ir)+self.bias_ir+torch.mm(hidden,self.weight_hr)+self.bias_hr)
         zt = torch.sigmoid(torch.mm(input_x,self.weight_iz)+self.bias_iz+torch.mm(hidden,self.weight_hz)+self.bias_hz)
-        nt = torch.tanh(torch.mm(input_x,self.weight_in)+self.bias_in+torch.mm(hidden,self.weight_hn)+self.bias_hn)
+        nt = torch.tanh(torch.mm(input_x,self.weight_in)+self.bias_in+rt*(torch.mm(hidden,self.weight_hn)+self.bias_hn))
         ht = (1-zt)*nt + zt*hidden
         return ht
 
@@ -90,63 +90,50 @@ class SCF_GRUCell(nn.Module):
         # type: (Tensor, Tuple[Tensor, Tensor]) -> Tuple[Tensor, Tuple[Tensor, Tensor]]
         '''
         loca_agent:tensor(2)
-        loc_others:list of tensor(2)
+        loc_others:tensor(n-1,2)
         loc_other_index:list of other agents' index
-        feature_img: tensor(batch_size,32,80,80)
+        feature_img: tensor(32,80,80)
         f_vel:tensor(16)
         hiddens:tensor(n,48)
         hidden:tensor(48)
         '''
-        H = feature_img.shape[2]
-        W = feature_img.shape[3]
+        H = feature_img.shape[1]
+        W = feature_img.shape[2]
         nums_feature = feature_img.shape[1]
         u = int(H/2-int(loc_agent[1]))
         v = int(loc_agent[0])
         # feature_agent:(32)
-        feature_agent = feature_img[0,:,u,v]
-        #print(feature_img.shape)
-        #print(feature_agent.shape)
-        #t=input("1")
+        feature_agent = feature_img[ :, u, v]
         # sp: tensor(6,6,48)
         sp = torch.zeros((self.social_pooling_size[0],self.social_pooling_size[1],self.hidden_size)).to(DEVICE)
         # sp_c: count the numbers in (6,6)
         sp_c = torch.zeros((self.social_pooling_size[0],self.social_pooling_size[1])).to(DEVICE)
-        for i in range(len(loc_others)):
+        for i in range(loc_others.shape[0]):
           # loc:tensor(2)
           loc = loc_others[i]
           # dist:tensor(1)
-          dist = self.compute_dist(loc,loc_agent)
-          if self.radius_range[0]<=dist<=self.radius_range[1]:
-            theta = self.compute_theta(loc_agent,loc)
+          dist = self.compute_dist(loc, loc_agent)
+          if self.radius_range[0] <= dist <= self.radius_range[1]:
+            theta = self.compute_theta(loc_agent, loc)
             u = int((dist-self.radius_range[0])//self.radius_step)
             v = int((theta//self.theta_step))
             sp[u][v] += hiddens[loc_other_index[i]]
             sp_c[u][v] += 1
         for i in range(self.social_pooling_size[0]):
           for j in range(self.social_pooling_size[1]):
-            if (sp_c[i][j]>1.0):
+            if sp_c[i][j] > 1.0:
               sp[i][j] = sp[i][j]/sp_c[i][j]
         #(6,6,48)->(6*6*48)
         sp = sp.view(self.social_pooling_size[0]*self.social_pooling_size[1]*self.hidden_size)
         #(6*6*48)->(48)
         fsp = self.fc(sp)
-        #print(fsp.shape)
-        #t=input("2")
         input_x = torch.cat((feature_agent,f_vel,fsp),0)
-        #print(input_x.shape)
-        #print(self.weight_ir.shape)
         #(32)+(16)+(48)=(96)
-        aa = torch.sum(torch.mul(input_x,self.weight_ir))
-        #print(aa)
-        #print(aa.shape)
-        #t=input("tt")
         assert input_x.shape[0]==96
         rt = torch.sigmoid(torch.sum(torch.mul(input_x,self.weight_ir))+self.bias_ir+torch.sum(torch.mul(hidden,self.weight_hr))+self.bias_hr)
         zt = torch.sigmoid(torch.sum(torch.mul(input_x,self.weight_iz))+self.bias_iz+torch.sum(torch.mul(hidden,self.weight_hz))+self.bias_hz)
-        nt = torch.tanh(torch.sum(torch.mul(input_x,self.weight_in))+self.bias_in+torch.sum(torch.mul(hidden,self.weight_hn))+self.bias_hn)
+        nt = torch.tanh(torch.sum(torch.mul(input_x,self.weight_in))+self.bias_in+rt*(torch.sum(torch.mul(hidden,self.weight_hn))+self.bias_hn))
         ht = (1-zt)*nt + zt*hidden
-        #print(ht.shape)
-        #t=input("3")
         return ht
 
 
@@ -166,39 +153,44 @@ class GRULayer(nn.Module):
         return torch.stack(outputs), state
 
 class SCF_GRULayer(nn.Module):
-    def __init__(self, cell, nums_sample,numbers_layers,*cell_args):
+    def __init__(self, cell, batch_size, nums_sample,numbers_layers,*cell_args):
         super(SCF_GRULayer, self).__init__()
         self.cell = cell(*cell_args)
         self.cell.to(DEVICE)
         self.K = nums_sample
         self.numbers_layers = numbers_layers
+        self.batch_size = batch_size
 
     #@jit.script_method
     def forward(self,path,f_vel,f_img):
         # type: (Tensor, Tuple[Tensor, Tensor]) -> Tuple[Tensor, Tuple[Tensor, Tensor]]
         '''
-        path:tensor(40,n,2)
-        f_vel:tensor(40,n,16)
+        path:tensor(40,batch_size*n,2)
+        f_vel:tensor(40,batch_size*n,16)
         f_img:tensor(batch_size,32,80,80)
-        return output_x(40,n,48),hidden_n(n,48)
+        return output_x(40,batch_size*n,48),hidden_n(batch_size*n,48)
         '''
         assert path.shape[0]==40
-        nums_agent = path.shape[1]
+        nums_agent = int(path.shape[1]/self.batch_size)
         outputs = []
         #state:tensor(n,hidden)
-        state = torch.zeros((nums_agent,self.cell.hidden_size)).to(DEVICE)
+        state = torch.zeros((path.shape[1], self.cell.hidden_size)).to(DEVICE)
         for i in range(self.numbers_layers):
           new_state = state.clone()
-          for j in range(nums_agent):
-            # tensor(2)
-            loc_agent = path[i][j]
-            loc_other = []
-            loc_other_index = []
-            for t in range(nums_agent):
-              if t!=j:
-                loc_other.append(path[i][t])
-                loc_other_index.append(t)
-            new_state[j] = self.cell(loc_agent,loc_other,loc_other_index,f_img,f_vel[i][j],state,state[j])
+          for k in range(self.batch_size):
+              for j in range(nums_agent):
+                # tensor(2)
+                loc_agent = path[i][k*nums_agent+j]
+                # tensor(nums_agent,2)
+                loc_other = torch.zeros((nums_agent-1, 2)).to(DEVICE)
+                loc_other_index = []
+                for t, index in zip(range(nums_agent), range(nums_agent-1)):
+                  if t != j:
+                    loc_other[index] = path[i][k*nums_agent+t]
+                    loc_other_index.append(t)
+                new_state[k*nums_agent+j] = self.cell(loc_agent, loc_other,
+                                                           loc_other_index, f_img[k],
+                                                           f_vel[i][k*nums_agent+j], state[i:i+nums_agent], state[k*nums_agent+j])
           state = new_state.clone()
           outputs += [state]
         return torch.stack(outputs), state
@@ -213,11 +205,11 @@ class GRU(nn.Module):
         return self.layer.forward(input,state)
 
 class SCF_GRU(nn.Module):
-    def __init__(self, nums_sample,input_size,hidden_size,nums_layers,radius_range,social_pooling_size,device):
+    def __init__(self, batch_size, nums_sample,input_size,hidden_size,nums_layers,radius_range,social_pooling_size,device):
         global DEVICE
         super(SCF_GRU, self).__init__()
         DEVICE=device
-        self.layer = SCF_GRULayer(SCF_GRUCell,nums_sample,nums_layers,input_size,hidden_size,radius_range,social_pooling_size)
+        self.layer = SCF_GRULayer(SCF_GRUCell, batch_size, nums_sample,nums_layers,input_size,hidden_size,radius_range,social_pooling_size)
         self.layer.to(DEVICE)
     #@jit.script_method
     def forward(self, Y_path,Y_fv,feature_map):

@@ -16,11 +16,12 @@ class HalfExp(nn.Module):
         return x
 
 class Model(nn.Module):
-  def __init__(self,sample_number = 4,hz=10,device='cpu'): 
+  def __init__(self,sample_number = 4,hz=10,device='cpu',batch_size=1):
     super(Model, self).__init__()
     self.K = sample_number
     self.hz = hz
     self.device = device
+    self.batch_size = batch_size
     self.build()               
      
 
@@ -31,20 +32,24 @@ class Model(nn.Module):
     trajectory_data_y: a tensor with shape (batch_size,10,2,40) 
     image_data: a tensor with shape (batch_size,4,160,160)
     return:
-      Y_path:the K paths with cell(K,40, n, 2)
-      deltaY:the K delta path with cell(K,40, n, 2)
-      scores:the K paths' scores with cell(K,n, 1)
+      Y_path:the K paths with cell(K,40, batch_size*n, 2)
+      deltaY:the K delta path with cell(K,40, batch_size*n, 2)
+      scores:the K paths' scores with cell(K,batch_size*n, 1)
+      H_miu: (batch_size*n,48)
+      H_delta:(batch_size*n,48)
     '''
     sequence_x = trajectory_data_x.shape[3]
     sequence_y = trajectory_data_y.shape[3]
-    current_location = trajectory_data_x[:,:,-1].detach()
+    batch_size = trajectory_data_x.shape[0]
+    n_agents = trajectory_data_x.shape[1]
+    current_location = trajectory_data_x[:, :, :, -1].detach().view(batch_size*n_agents, trajectory_data_x.shape[2])
     # cnn feature map （batch_size,4,160,160）->(batch_size,32,80,80)
     feature_map = self.cnn_map(image_data)
     # Encoder 1 and 2
     # Hx :(batch_size,10,2,20)->(batch_size,10,16,20)
     Hx = self.rnn_encoder1(trajectory_data_x.view(-1,trajectory_data_x.shape[2],trajectory_data_x.shape[3]))
     # (batch_size*n,16,20)->(20,batch_size*n,16)
-    Hx = Hx.permute(2,0,1)
+    Hx = Hx.permute(2, 0, 1)
     # (20,batch_size*n,16)->(20,batch_size*n,48)
     Hx,h_n_x = self.encoder1_gru(Hx)
     # (batch_size*n,48)
@@ -67,14 +72,16 @@ class Model(nn.Module):
     # H_delta:(batch_size*n,48)->(batch_size*n,48)
     H_delta = self.fc3(Hc)
     # sample k paths
-    Y_path = torch.zeros((self.K,trajectory_data_y.shape[2],trajectory_data_y.shape[0],trajectory_data_y.shape[1])).to(self.device)
+    Y_path = torch.zeros((self.K,trajectory_data_y.shape[3],
+                          trajectory_data_y.shape[0]*trajectory_data_y.shape[1], trajectory_data_y.shape[2])).to(self.device)
     #Z K*(n,48)
     # Z = []
     # record each sample's score
-    scores = torch.zeros((self.K,trajectory_data_y.shape[0],1)).to(self.device)
-    delta_Y_list = torch.zeros(((self.K,trajectory_data_y.shape[2],trajectory_data_y.shape[0],trajectory_data_y.shape[1]))).to(self.device)
+    scores = torch.zeros((self.K, trajectory_data_y.shape[0]*trajectory_data_y.shape[1], 1)).to(self.device)
+    delta_Y_list = torch.zeros(Y_path.shape).to(self.device)
     for i in range(self.K):
       #(batch_size*n,48)
+      print("K:{}".format(i))
       normalize = torch.randn(size_n).to(self.device)
       #z_i:(batch_size*n,48)
       z_i = H_delta.mul(normalize)+H_miu
@@ -88,43 +95,48 @@ class Model(nn.Module):
       xz = torch.zeros((sequence_y,size_n[0],size_n[1])).to(self.device)
       xz[0] = xz_i
       # reconstruction
+      print(xz.shape)
+      t=input()
       Hxz_i,h_x_xz = self.sample_reconstruction(xz)
+      t = input('a')
       #h_size = Hxz_i.shape[0]
-      # Y_i is the initial predict path:(40,n,2)
+      # Y_i is the initial predict path:(40,batch_size*n,2)
       Y_i = self.fc5(Hxz_i)
       #record the predict path
       Y_path[i] = Y_i
       # Y_velocity is velocity tensor(40,n,2)
-      Y_velocity = self.compute_vel(Y_i,current_location)
+      Y_velocity = self.compute_vel(Y_i, current_location)
       #print(Y_velocity.shape)
-      #(40,n,2)->(40,n,16)
+      #(40,batch_size*n,2)->(40,batch_size*n,16)
       Y_fv = self.fc_vel(Y_velocity)
-      #print(Y_fv.shape)
-      #t=input('0')
-      # hidden:tensor(40,n,48) state:tensor(n,48) the last state
-      hidden,state = self.decoder2(Y_i,Y_fv,feature_map) 
-      deltaY = self.fc_dy(hidden[-1]).view(state.shape[0],2,-1).permute(2,0,1)
+      # hidden:tensor(40,batch_size*n,48) state:tensor(batch_size*n,48) the last state
+      hidden,state = self.decoder2(Y_i,Y_fv,feature_map)
+      #(batch_size*n,48)->(batch_size*n,80)->(batch_size*n,2,40)->(40,batch_size*n,2)
+      deltaY = self.fc_dy(hidden[-1]).view(state.shape[0],2,-1).permute(2, 0, 1)
       delta_Y_list[i] = deltaY
-      score = torch.sum(self.fc_score(hidden),dim=0)
+      #(40,batch_size*n,48)->(40,batch_size*n,1)->(batch_size*n,1)
+      score = torch.sum(self.fc_score(hidden), dim=0)
       scores[i] = score
+    print(Y_path.shape)
+    print(delta_Y_list.shape)
+    print(scores.shape)
+    t=input()
     return Y_path, delta_Y_list, scores, H_miu,H_delta
   def compute_vel(self,path,current_location):
     '''
-    path:tensor(40,n,2) 
-    current_location:the current location for agents.Tensor with size(n,2)
+    path:tensor(40,batch_size*n,2)
+    current_location:the current location for agents.Tensor with size(batch_size*n,2)
     '''
     sequence = path.shape[0]
-    vel = torch.zeros(path.shape)
+    vel = torch.zeros(path.shape).to(self.device)
     for j in range(sequence):
-      if j==0:
+      if j == 0:
         vel[j] = (path[j]-current_location)*self.hz
       else:
         vel[j] = (path[j]-path[j-1])*self.hz
     return vel
-      # (40,n,2) and (n,2) to compute_vel
 
-    pass
-  def compute_dist_loss(self,Y_i,Y):
+  def compute_dist_loss(self, Y_i, Y):
     '''
     Y_i:predict path:(K,40,n,2)
     Y  :ground truth: (n,2,40)
@@ -227,7 +239,7 @@ class Model(nn.Module):
     # feature map(6*6*48)->fc->(48) get feature_sp
     # concat 32+16+48=96 scF
     # nn.GRU(96,48,40)->(1,40)
-    self.decoder2 = SCF_GRU(self.K,96,48,40,radius_range=(0.5,4.0),social_pooling_size=(6,6),device=self.device) 
+    self.decoder2 = SCF_GRU(self.batch_size, self.K,  96, 48, 40, radius_range=(0.5,4.0), social_pooling_size=(6,6),device=self.device)
     # for output(48)->(2,40)
     self.fc_score = nn.Linear(48,1)
     self.fc_dy =nn.Sequential(nn.Linear(48,80),nn.ReLU())
