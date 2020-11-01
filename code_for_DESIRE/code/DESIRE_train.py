@@ -29,7 +29,7 @@ def main():
     train(cfg)
 
 def train(cfg):
-  train_data_x, train_data_y, train_img = load_data(file_dir)
+  train_data_x, train_data_y, train_img = load_data(cfg.file_dir)
   device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
   model = Model(sample_number=cfg.nums_sample,hz=cfg.frequent,device=device)
   model.to(device)
