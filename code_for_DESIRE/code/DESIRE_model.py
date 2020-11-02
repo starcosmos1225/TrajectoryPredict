@@ -137,7 +137,7 @@ class Model(nn.Module):
     Y_i:predict path:(K,40,batch_size*n,2)
     Y  :ground truth: (batch_size*n,2,40)
     '''
-    loss_sum = 0.0
+    loss_sum = torch.zeros(1).to(self.device)
     # (batch_size*n,2,40)->(40,batch_size*n,2)
     Y_gt= Y.permute(2,0,1)
     for i in range(self.K):
@@ -162,7 +162,7 @@ class Model(nn.Module):
     Y:(n,2,40)
     '''
     Y_resize = Y.permute(2,0,1)
-    loss = torch.zeros(1)
+    loss = torch.zeros(1).to(self.device)
     for i in range(self.K):
       #dist (40, n)
       old_d = torch.max(torch.abs(oldY[i]-Y_resize),dim=2).values
@@ -179,8 +179,7 @@ class Model(nn.Module):
     Y_i:predict path:K list with (40,batch_size*n,2)
     Y  :ground truth: (40,batch_size*n,2)
     '''
-    loss_sum = 0.0
-
+    loss_sum = torch.zeros(1).to(self.device)
     for i in range(self.K):
       loss_sum += (Y_i[i]-Y).norm()
     return loss_sum/self.K/Y.shape[1]
