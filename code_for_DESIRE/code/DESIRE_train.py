@@ -55,16 +55,27 @@ def train(cfg):
       train_trajectory_x = train_data_x[index:index+cfg.batch_size].to(device)
       # train_trajectory_y is [batch_size,n,2,40] 
       train_trajectory_y = train_data_y[index:index+cfg.batch_size].to(device)
+      
       # train_img_i is [batch_size,4,160,160]
       train_img_i = train_img[index:index+cfg.batch_size].to(device)
+      torch.cuda.synchronize()
+      end = time.time()
+      print("the pre time:{}".format(end-start))
+      torch.cuda.synchronize()
+      start = time.time()
       loss = model.train(train_trajectory_x, train_trajectory_y, train_img_i)
+      torch.cuda.synchronize()
+      end = time.time()
+      print("the train time:{}".format(end-start))
+      torch.cuda.synchronize()
+      start = time.time()
       loss.backward()
       torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
       optimizer.step()
       total_loss += loss.detach().item()
       torch.cuda.synchronize()
       end = time.time()
-      print("the cost time:{}".format(end-start))
+      print("the post time:{}".format(end-start))
     if epoch_i %60==0:
       filename = cfg.save_dir+"{}.pth".format(epoch_i)
       torch.save(model,filename)
