@@ -9,6 +9,7 @@ from DESIRE_model import Model
 from utils import load_data
 import argparse
 import gc 
+import time
 
 def main():
     '''
@@ -47,6 +48,8 @@ def train(cfg):
     #np.random.shuffle(order)
     total_loss = torch.zeros(1)
     for index in range(0,data_size,cfg.batch_size):
+      torch.cuda.synchronize()
+      start = time.time()
       print("train index is :{}\r".format(index),end="")
       # train_trajectory_x is [batch_size,n,2,20]
       train_trajectory_x = train_data_x[index:index+cfg.batch_size].to(device)
@@ -59,9 +62,13 @@ def train(cfg):
       torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
       optimizer.step()
       total_loss += loss.detach().item()
+      torch.cuda.synchronize()
+      end = time.time()
+      print("the cost time:{}".format(end-start))
     if epoch_i %60==0:
       filename = cfg.save_dir+"{}.pth".format(epoch_i)
       torch.save(model,filename)
+    
     print("the total loss is :{}".format(total_loss[0]))
     gc.collect()
 
