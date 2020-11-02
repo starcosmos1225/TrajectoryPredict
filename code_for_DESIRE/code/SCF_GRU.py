@@ -108,6 +108,9 @@ class SCF_GRUCell(nn.Module):
         sp = torch.zeros((self.social_pooling_size[0],self.social_pooling_size[1],self.hidden_size)).to(DEVICE)
         # sp_c: count the numbers in (6,6)
         sp_c = torch.zeros((self.social_pooling_size[0],self.social_pooling_size[1])).to(DEVICE)
+        # print(loc_others.shape[0])
+        # print("len:{}".format(len(loc_other_index)))
+        # t=input
         for i in range(loc_others.shape[0]):
           # loc:tensor(2)
           loc = loc_others[i]
@@ -117,8 +120,8 @@ class SCF_GRUCell(nn.Module):
             theta = self.compute_theta(loc_agent, loc)
             u = int((dist-self.radius_range[0])//self.radius_step)
             v = int((theta//self.theta_step))
-            sp[u][v] += hiddens[loc_other_index[i]]
-            sp_c[u][v] += 1
+            sp[u,v] += hiddens[loc_other_index[i]]
+            sp_c[u,v] += 1
         for i in range(self.social_pooling_size[0]):
           for j in range(self.social_pooling_size[1]):
             if sp_c[i][j] > 1.0:
@@ -175,6 +178,8 @@ class SCF_GRULayer(nn.Module):
         outputs = []
         #state:tensor(n,hidden)
         state = torch.zeros((path.shape[1], self.cell.hidden_size)).to(DEVICE)
+        # print(f_img.shape)
+        # print("batch_size:{}".format(self.batch_size))
         for i in range(self.numbers_layers):
           new_state = state.clone()
           for k in range(self.batch_size):
@@ -184,13 +189,15 @@ class SCF_GRULayer(nn.Module):
                 # tensor(nums_agent,2)
                 loc_other = torch.zeros((nums_agent-1, 2)).to(DEVICE)
                 loc_other_index = []
-                for t, index in zip(range(nums_agent), range(nums_agent-1)):
+                index = 0
+                for t in range(nums_agent):
                   if t != j:
                     loc_other[index] = path[i][k*nums_agent+t]
                     loc_other_index.append(t)
+                    index += 1
                 new_state[k*nums_agent+j] = self.cell(loc_agent, loc_other,
-                                                           loc_other_index, f_img[k],
-                                                           f_vel[i][k*nums_agent+j], state[i:i+nums_agent], state[k*nums_agent+j])
+                                                      loc_other_index, f_img[k],
+                                                      f_vel[i][k*nums_agent+j], state[i:i+nums_agent], state[k*nums_agent+j])
           state = new_state.clone()
           outputs += [state]
         return torch.stack(outputs), state

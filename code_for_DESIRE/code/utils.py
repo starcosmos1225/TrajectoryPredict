@@ -8,7 +8,7 @@ import numpy as np
 import os
 trajector_dir = "trajectory/"
 image_dir = "merged_data/"
-def load_data(train_dir):
+def load_data(train_dir,max_size = -1):
   '''
   return:
     trajectory_x:(size,n,2,20)
@@ -17,14 +17,18 @@ def load_data(train_dir):
   '''
   filedirs = os.listdir(train_dir)
   filedirs.sort()
-  size = len(filedirs)
+  if max_size==-1:
+    size = len(filedirs)
+  else:
+    size = max_size
   trajectory_data_x = torch.zeros((size,10,2,20))
   trajectory_data_y = torch.zeros((size,10,2,40))
   data_img = torch.zeros((size,4,160,160))
   #max_size_n=0
   for file_i in range(len(filedirs)):
-    # if (file_i>2):
-    #   continue
+    if (file_i>=size):
+      continue
+    #print(file_i)
     fn = filedirs[file_i]
     trajectory_path = os.path.join(train_dir, fn,trajector_dir)
     filenames = os.listdir(trajectory_path)
@@ -34,7 +38,7 @@ def load_data(train_dir):
     for index in range(len(filenames)):
       filename = filenames[index]
       filename = os.path.join(trajectory_path,filename)
-      print(filename)
+      #print(filename)
       fr = open(filename,'r')
       for i in range(20):
         l = fr.readline()
@@ -57,6 +61,8 @@ def load_data(train_dir):
     data_img[file_i] = img
     trajectory_data_x[file_i] = trajectory_x
     trajectory_data_y[file_i] = trajectory_y
+  #print(trajectory_data_x.shape)
+  #t=input()
   return trajectory_data_x,trajectory_data_y,data_img
 
 if __name__=='__main__':

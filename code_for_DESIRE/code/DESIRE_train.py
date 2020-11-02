@@ -25,27 +25,29 @@ def main():
                         help='the frequent of frame')
     parser.add_argument('--save_dir', default='model/saved/')
     parser.add_argument('--file_dir', default='/home/hxy/Documents/TrajectoryPredict/code_for_DESIRE/data/train/')
-    parser.add_argument('--batch_size',type=int,default=4)
+    parser.add_argument('--batch_size',type=int,default=2)
     cfg = parser.parse_args()
     train(cfg)
 
 def train(cfg):
-  train_data_x, train_data_y, train_img = load_data(cfg.file_dir)
+  train_data_x, train_data_y, train_img = load_data(cfg.file_dir,max_size=50)
   device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
   model = Model(sample_number=cfg.nums_sample,hz=cfg.frequent,device=device, batch_size=cfg.batch_size)
   model.to(device)
   data_size = train_data_x.shape[0]
-  order = np.arange(data_size)
+  #print(train_data_x.shape)
+  #print(data_size)
+  #order = np.arange(data_size)
   optimizer = torch.optim.Adam(model.parameters(),lr=cfg.learning_rate)
   #data_size = train_data_x.shape[0]
   for epoch_i in range(cfg.epoch):
     print("the epoch is :{}".format(epoch_i))
     if epoch_i==0:
       model.zero_grad()
-    np.random.shuffle(order)
+    #np.random.shuffle(order)
     total_loss = torch.zeros(1)
-    for index,i in zip(order,range(0,data_size,cfg.batch_size)):
-      print("train index is :{}\r".format(i),end="")
+    for index in range(0,data_size,cfg.batch_size):
+      print("train index is :{}\r".format(index),end="")
       # train_trajectory_x is [batch_size,n,2,20]
       train_trajectory_x = train_data_x[index:index+cfg.batch_size].to(device)
       # train_trajectory_y is [batch_size,n,2,40] 

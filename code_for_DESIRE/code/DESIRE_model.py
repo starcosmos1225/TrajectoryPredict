@@ -16,20 +16,21 @@ class HalfExp(nn.Module):
         return x
 
 class Model(nn.Module):
-  def __init__(self,sample_number = 4,hz=10,device='cpu',batch_size=1):
+  def __init__(self,sample_number = 4,hz=10,device='cpu',batch_size=1,nums_iteration=1):
     super(Model, self).__init__()
     self.K = sample_number
     self.hz = hz
     self.device = device
     self.batch_size = batch_size
+    self.iteration = nums_iteration
     self.build()               
      
 
   def forward(self, trajectory_data_x,trajectory_data_y,image_data):
     '''
     input:
-    trajectory_data_x: a tensor with shape (batch_size,10,2,20) 
-    trajectory_data_y: a tensor with shape (batch_size,10,2,40) 
+    trajectory_data_x: a tensor with shape (batch_size*n,2,20) 
+    trajectory_data_y: a tensor with shape (batch_size*n,2,40) 
     image_data: a tensor with shape (batch_size,4,160,160)
     return:
       Y_path:the K paths with cell(K,40, batch_size*n, 2)
@@ -38,16 +39,16 @@ class Model(nn.Module):
       H_miu: (batch_size*n,48)
       H_delta:(batch_size*n,48)
     '''
-    sequence_x = trajectory_data_x.shape[3]
-    sequence_y = trajectory_data_y.shape[3]
+    sequence_x = trajectory_data_x.shape[2]
+    sequence_y = trajectory_data_y.shape[2]
     batch_size = trajectory_data_x.shape[0]
-    n_agents = trajectory_data_x.shape[1]
-    current_location = trajectory_data_x[:, :, :, -1].detach().view(batch_size*n_agents, trajectory_data_x.shape[2])
+    n_agents = int(trajectory_data_x.shape[0]/self.batch_size)
+    current_location = trajectory_data_x[:, :, -1].detach()
     # cnn feature map （batch_size,4,160,160）->(batch_size,32,80,80)
     feature_map = self.cnn_map(image_data)
     # Encoder 1 and 2
     # Hx :(batch_size,10,2,20)->(batch_size,10,16,20)
-    Hx = self.rnn_encoder1(trajectory_data_x.view(-1,trajectory_data_x.shape[2],trajectory_data_x.shape[3]))
+    Hx = self.rnn_encoder1(trajectory_data_x)
     # (batch_size*n,16,20)->(20,batch_size*n,16)
     Hx = Hx.permute(2, 0, 1)
     # (20,batch_size*n,16)->(20,batch_size*n,48)
@@ -55,7 +56,7 @@ class Model(nn.Module):
     # (batch_size*n,48)
     new_Hx = Hx[-1]
     # Hy :(n,2,40)->(n,16,40)
-    Hy = self.rnn_encoder2(trajectory_data_y.view(-1,trajectory_data_y.shape[2],trajectory_data_y.shape[3]))
+    Hy = self.rnn_encoder2(trajectory_data_y)
     Hy = Hy.permute(2,0,1)
     # (40,batch_size*n,16)->(40,batch_size*n,48)
     Hy,h_n_y = self.encoder2_gru(Hy)
@@ -72,16 +73,16 @@ class Model(nn.Module):
     # H_delta:(batch_size*n,48)->(batch_size*n,48)
     H_delta = self.fc3(Hc)
     # sample k paths
-    Y_path = torch.zeros((self.K,trajectory_data_y.shape[3],
-                          trajectory_data_y.shape[0]*trajectory_data_y.shape[1], trajectory_data_y.shape[2])).to(self.device)
+    Y_path = torch.zeros((self.K,trajectory_data_y.shape[2],
+                          trajectory_data_y.shape[0], trajectory_data_y.shape[1])).to(self.device)
     #Z K*(n,48)
     # Z = []
     # record each sample's score
-    scores = torch.zeros((self.K, trajectory_data_y.shape[0]*trajectory_data_y.shape[1], 1)).to(self.device)
+    scores = torch.zeros((self.K, trajectory_data_y.shape[0], 1)).to(self.device)
     delta_Y_list = torch.zeros(Y_path.shape).to(self.device)
     for i in range(self.K):
       #(batch_size*n,48)
-      print("K:{}".format(i))
+      #print("K:{}".format(i))
       normalize = torch.randn(size_n).to(self.device)
       #z_i:(batch_size*n,48)
       z_i = H_delta.mul(normalize)+H_miu
@@ -95,10 +96,7 @@ class Model(nn.Module):
       xz = torch.zeros((sequence_y,size_n[0],size_n[1])).to(self.device)
       xz[0] = xz_i
       # reconstruction
-      print(xz.shape)
-      t=input()
       Hxz_i,h_x_xz = self.sample_reconstruction(xz)
-      t = input('a')
       #h_size = Hxz_i.shape[0]
       # Y_i is the initial predict path:(40,batch_size*n,2)
       Y_i = self.fc5(Hxz_i)
@@ -110,17 +108,15 @@ class Model(nn.Module):
       #(40,batch_size*n,2)->(40,batch_size*n,16)
       Y_fv = self.fc_vel(Y_velocity)
       # hidden:tensor(40,batch_size*n,48) state:tensor(batch_size*n,48) the last state
-      hidden,state = self.decoder2(Y_i,Y_fv,feature_map)
-      #(batch_size*n,48)->(batch_size*n,80)->(batch_size*n,2,40)->(40,batch_size*n,2)
-      deltaY = self.fc_dy(hidden[-1]).view(state.shape[0],2,-1).permute(2, 0, 1)
+      for j in range(self.iteration):
+        hidden,state = self.decoder2(Y_i,Y_fv,feature_map)
+        #(batch_size*n,48)->(batch_size*n,80)->(batch_size*n,2,40)->(40,batch_size*n,2)
+        deltaY = self.fc_dy(hidden[-1]).view(state.shape[0],2,-1).permute(2, 0, 1)
+        Y_i = Y_i+deltaY
       delta_Y_list[i] = deltaY
       #(40,batch_size*n,48)->(40,batch_size*n,1)->(batch_size*n,1)
       score = torch.sum(self.fc_score(hidden), dim=0)
       scores[i] = score
-    print(Y_path.shape)
-    print(delta_Y_list.shape)
-    print(scores.shape)
-    t=input()
     return Y_path, delta_Y_list, scores, H_miu,H_delta
   def compute_vel(self,path,current_location):
     '''
@@ -138,19 +134,22 @@ class Model(nn.Module):
 
   def compute_dist_loss(self, Y_i, Y):
     '''
-    Y_i:predict path:(K,40,n,2)
-    Y  :ground truth: (n,2,40)
+    Y_i:predict path:(K,40,batch_size*n,2)
+    Y  :ground truth: (batch_size*n,2,40)
     '''
     loss_sum = 0.0
+    # (batch_size*n,2,40)->(40,batch_size*n,2)
     Y_gt= Y.permute(2,0,1)
     for i in range(self.K):
+      #print((Y_i[i]-Y_gt).norm().shape)
+      #t=input()
       loss_sum += (Y_i[i]-Y_gt).norm()
-    return loss_sum/self.K/Y.shape[1]
+    return loss_sum/self.K/Y.shape[0]
 
   def compute_kld(self,miu,sigma):
     '''
-    miu:(n,48)
-    sigma:(n,48)
+    miu:(batch_size*n,48)
+    sigma:(batch_size*n,48)
     return :the loss of KLD:-0.5*(1+log(sigma*sigma)-sigma*sigma-miu*miu)
     '''
     sigma2 = torch.square(sigma)
@@ -158,18 +157,16 @@ class Model(nn.Module):
 
   def compute_cross_entropy(self,oldY,newY,Y):
     '''
-    oldY:(K,40,n,2)
-    newY:(K,40,n,2)
+    oldY:(K,40,batch_size*n,2)
+    newY:(K,40,batch_size*n,2)
     Y:(n,2,40)
     '''
     Y_resize = Y.permute(2,0,1)
     loss = torch.zeros(1)
     for i in range(self.K):
-      old = oldY[i]
-      new = newY[i]
       #dist (40, n)
-      old_d = torch.max(torch.abs(old-Y_resize),dim=2).values
-      new_d = torch.max(torch.abs(new-Y_resize),dim=2).values
+      old_d = torch.max(torch.abs(oldY[i]-Y_resize),dim=2).values
+      new_d = torch.max(torch.abs(newY[i]-Y_resize),dim=2).values
       # P, Q (40, n)
       P = func.softmax(old_d,dim=0)
       Q = func.softmax(new_d,dim=0)
@@ -179,12 +176,13 @@ class Model(nn.Module):
 
   def compute_regression(self,Y_i,Y):
     '''
-    Y_i:predict path:K list with (40,n,2)
-    Y  :ground truth: (n,2,40)
+    Y_i:predict path:K list with (40,batch_size*n,2)
+    Y  :ground truth: (40,batch_size*n,2)
     '''
     loss_sum = 0.0
+
     for i in range(self.K):
-      loss_sum += (Y_i[i]-Y.permute(2,0,1)).norm()
+      loss_sum += (Y_i[i]-Y).norm()
     return loss_sum/self.K/Y.shape[1]
 
   def train(self, trajectory_data_x,trajectory_data_y,image_data):
@@ -195,17 +193,19 @@ class Model(nn.Module):
     image_data: a tensor with shape (batch_size,160,160,4)
     '''
     # print("begin train")
-    # predict_path:(K,40, n, 2)
-    # delta_y:(K,40, n, 2)
-    # scores: (K,n, 1)
-    # miu: (n, 48)
-    # sigma: (n,48)
+    # predict_path:(K,40, batch_size*n, 2)
+    # delta_y:(K,40, batch_size*n, 2)
+    # scores: (K,batch_size*n, 1)
+    # miu: (batch_size*n, 48)
+    # sigma: (batch_size*n,48)
+    trajectory_data_x = trajectory_data_x.view(-1,trajectory_data_x.shape[2],trajectory_data_x.shape[3])
+    trajectory_data_y = trajectory_data_y.view(-1,trajectory_data_y.shape[2],trajectory_data_y.shape[3])
     predict_path,delta_y,scores,miu,sigma = self.forward(trajectory_data_x,trajectory_data_y,image_data)
     new_predict_path = predict_path+delta_y
     loss_distance = self.compute_dist_loss(predict_path,trajectory_data_y)
     loss_kld = self.compute_kld(miu,sigma)
     loss_ce = self.compute_cross_entropy(predict_path,new_predict_path,trajectory_data_y)
-    loss_regression = self.compute_regression(new_predict_path,trajectory_data_y)
+    loss_regression = self.compute_regression(new_predict_path,trajectory_data_y.permute(2,0,1))
     loss = loss_distance+loss_kld+loss_ce+loss_regression
     return loss
 
