@@ -6,7 +6,7 @@ from torch.autograd import Variable
 import torch.nn.functional as func 
 import numpy as np
 from SCF_GRU import SCF_GRU
-
+import time
 class HalfExp(nn.Module):
     def __init__(self):
         super(HalfExp, self).__init__()
@@ -39,6 +39,8 @@ class Model(nn.Module):
       H_miu: (batch_size*n,48)
       H_delta:(batch_size*n,48)
     '''
+    torch.cuda.synchronize()
+    start = time.time()
     sequence_x = trajectory_data_x.shape[2]
     sequence_y = trajectory_data_y.shape[2]
     batch_size = trajectory_data_x.shape[0]
@@ -80,6 +82,11 @@ class Model(nn.Module):
     # record each sample's score
     scores = torch.zeros((self.K, trajectory_data_y.shape[0], 1)).to(self.device)
     delta_Y_list = torch.zeros(Y_path.shape).to(self.device)
+    torch.cuda.synchronize()
+    end = time.time()
+    print("the pre train time:{}".format(end-start))
+    torch.cuda.synchronize()
+    start = time.time()
     for i in range(self.K):
       #(batch_size*n,48)
       #print("K:{}".format(i))
@@ -117,6 +124,11 @@ class Model(nn.Module):
       #(40,batch_size*n,48)->(40,batch_size*n,1)->(batch_size*n,1)
       score = torch.sum(self.fc_score(hidden), dim=0)
       scores[i] = score
+    torch.cuda.synchronize()
+    end = time.time()
+    print("the for time:{}".format(end-start))
+    torch.cuda.synchronize()
+    start = time.time()
     return Y_path, delta_Y_list, scores, H_miu,H_delta
   def compute_vel(self,path,current_location):
     '''
