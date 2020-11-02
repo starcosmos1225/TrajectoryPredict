@@ -23,7 +23,6 @@ class Model(nn.Module):
     self.device = device
     self.batch_size = batch_size
     self.iteration = nums_iteration
-    self.xz = torch.zeros((40,batch_size*10,48)).to(self.device)
     self.build()               
      
 
@@ -101,10 +100,10 @@ class Model(nn.Module):
       # xz_i:(batch_size*n,48)
       xz_i = new_Hx.mul(beta_z)
       # padding 0 for gru input:(batch_size*n,48)->(40,batch_size*n,48)
-      self.xz[:,:,:] = 0.0
-      self.xz[0] = xz_i
+      xz = torch.zeros((sequence_y,size_n[0],size_n[1])).to(self.device)
+      xz[0] = xz_i
       # reconstruction
-      Hxz_i,h_x_xz = self.sample_reconstruction(self.xz)
+      Hxz_i,h_x_xz = self.sample_reconstruction(xz)
       #h_size = Hxz_i.shape[0]
       # Y_i is the initial predict path:(40,batch_size*n,2)
       Y_i = self.fc5(Hxz_i)
