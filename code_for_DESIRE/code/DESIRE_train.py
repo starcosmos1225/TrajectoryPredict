@@ -5,7 +5,7 @@ import torch.nn as nn
 from torch.autograd import Variable 
 import torch.nn.functional as func 
 import numpy as np
-from DESIRE_model import Model
+from DESIRE_model import CVAEModel, RefineModel
 from utils import load_data
 import argparse
 import gc 
@@ -32,21 +32,25 @@ def main():
 
 def train(cfg):
   train_data_x, train_data_y, train_img = load_data(cfg.file_dir,max_size=50)
-  device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-  print("device is {}".format(device))
-  model = Model(sample_number=cfg.nums_sample,hz=cfg.frequent,device=device, batch_size=cfg.batch_size)
-  optimizer = torch.optim.Adam(model.parameters(),lr=cfg.learning_rate)
-  model.to(device)
+  cvae_device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+  refine_device = torch.device("cpu")
+  print("cvae device is {}".format(cvae_device))
+  cvae_model = CVAEModel(sample_number=cfg.nums_sample,device=cvae_device, batch_size=cfg.batch_size)
+  refine_model = RefineModel(sample_number=cfg.nums_sample,hz=cfg.frequent,device=refine_device, batch_size=cfg.batch_size)
+  cvae_model.to(cvae_device)
+  refine_model.to(refine_device)
   data_size = train_data_x.shape[0]
   #print(train_data_x.shape)
   #print(data_size)
   #order = np.arange(data_size)
-  
+  cvae_optimizer = torch.optim.Adam(cvae_model.parameters(),lr=cfg.learning_rate)
+  refine_optimizer = torch.optim.Adam(refine_model.parameters(),lr=cfg.learning_rate)
   #data_size = train_data_x.shape[0]
   for epoch_i in range(cfg.epoch):
     print("the epoch is :{}".format(epoch_i))
     if epoch_i==0:
-      model.zero_grad()
+      cvae_model.zero_grad()
+      refine_model.zero_grad()
     #np.random.shuffle(order)
     total_loss = torch.zeros(1)
     for index in range(0,data_size,cfg.batch_size):
@@ -55,27 +59,47 @@ def train(cfg):
       start = time.time()
       print("train index is :{}\r".format(index),end="")
       # train_trajectory_x is [batch_size,n,2,20]
-      train_trajectory_x = train_data_x[index:index+cfg.batch_size].to(device)
+      train_trajectory_x = train_data_x[index:index+cfg.batch_size]
+      current_location = train_trajectory_x.view(-1,train_trajectory_x.shape[2],train_trajectory_x.shape[3])[:, :, -1].detach()
+      train_trajectory_x = train_trajectory_x.to(cvae_device)
+
       # train_trajectory_y is [batch_size,n,2,40] 
-      train_trajectory_y = train_data_y[index:index+cfg.batch_size].to(device)
+      train_trajectory_y = train_data_y[index:index+cfg.batch_size].to(cvae_device)
       
       # train_img_i is [batch_size,4,160,160]
-      train_img_i = train_img[index:index+cfg.batch_size].to(device)
-      loss = model.train(train_trajectory_x, train_trajectory_y, train_img_i)
-      if torch.cuda.is_available():
-        torch.cuda.synchronize()
-      start = time.time()
-      loss.backward()
-      torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-      optimizer.step()
-      total_loss += loss.detach().item()
-      if torch.cuda.is_available():
-        torch.cuda.synchronize()
-      end = time.time()
-      print("the post time:{}".format(end-start))
+      train_img_i = train_img[index:index+cfg.batch_size].to(refine_device)
+      #hx: (batch_size*n,48)
+      #y_path: (K,40,batch_size*n,2)
+      hx,y_path,loss_cvae = cvae_model.train(train_trajectory_x, train_trajectory_y)
+      #print(hx.shape)
+      #print(y_path.shape)
+      hx = hx.to(refine_device).detach()
+      y_path = y_path.to(refine_device).detach()
+      loss_cvae.backward()
+      #t=input('a')
+      torch.nn.utils.clip_grad_norm_(cvae_model.parameters(),1.0)
+      cvae_optimizer.step()
+      loss_refine = refine_model.train(hx,current_location, y_path,train_img_i,train_data_y[index:index+cfg.batch_size])
+      loss_refine.backward()
+      torch.nn.utils.clip_grad_norm_(refine_model.parameters(),1.0)
+      refine_optimizer.step()
+      print("the total loss is:{}".format((loss_cvae.detach().to(refine_device)+loss_refine).item()))
+      # if torch.cuda.is_available():
+      #   torch.cuda.synchronize()
+      # start = time.time()
+      # loss.backward()
+      # torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+      # optimizer.step()
+      # total_loss += loss.detach().item()
+      # if torch.cuda.is_available():
+      #   torch.cuda.synchronize()
+      # end = time.time()
+      # print("the post time:{}".format(end-start))
     if epoch_i %60==0:
-      filename = cfg.save_dir+"{}.pth".format(epoch_i)
-      torch.save(model,filename)
+      cvae_filename = cfg.save_dir+"cvae_{}.pth".format(epoch_i)
+      refine_filename = cfg.save_dir+"refine_{}.pth".format(epoch_i)
+      torch.save(cvae_model,cvae_filename)
+      torch.save(refine_model,refine_filename)
     
     print("the total loss is :{}".format(total_loss[0]))
     gc.collect()
