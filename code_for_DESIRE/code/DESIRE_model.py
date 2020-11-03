@@ -5,9 +5,13 @@ import torch.nn as nn
 from torch.autograd import Variable 
 import torch.nn.functional as func 
 import numpy as np
+
+import threading
 #from SCF_GRU import SCF_GRU,GRU_TEST
 import time
 import math
+#@cuda.jit
+
 class HalfExp(nn.Module):
     def __init__(self):
         super(HalfExp, self).__init__()
@@ -126,7 +130,13 @@ class Model(nn.Module):
       hx = torch.zeros((delta_Y_list.shape[2],48), device=torch.device(self.device))
       for j in range(self.iteration):
         for it in range(sequence_y):
-          x_i = self.scf(Y_i,Y_fv,feature_map,hx,n_agents,it)
+          lhalf_i = torch.zeros((self.batch_size*n_agents,48),device=torch.device(self.device))
+          sps = torch.zeros((self.batch_size*n_agents,36*48),device=torch.device(self.device))
+          for batch in range(self.batch_size):
+            lhalf_i[batch:batch+n_agents],sps[batch:batch+n_agents] = self.scf(Y_i[:,batch:batch+n_agents,:],Y_fv[:,batch:batch+n_agents,:],
+                                                               feature_map[batch],hx[batch:batch+n_agents],n_agents,it)
+          rhalf_i = self.fc_scf(sps)
+          x_i = torch.cat((lhalf_i,rhalf_i),1)
           hx = self.GRU_cell(x_i, hx)
           scf_gru_hidden[it] = hx
         #(batch_size*n,48)->(batch_size*n,80)->(batch_size*n,2,40)->(40,batch_size*n,2)
@@ -165,64 +175,85 @@ class Model(nn.Module):
       theta = 2*math.pi - costheta.acos()
     else:
       theta = costheta.acos()
-    return theta  
+    return theta
+
+
   def scf(self,path,Y_fv,feature_map,hidden,nums_agent,index):
     '''
-    path:(40,batch_size*n,2)
-    Y_fv:(40,batch_size*n,16)
-    feature_map:(batch_size,32,80,80)
-    hidden:(batch_size*n,48)
-    return:(batch_size*n,96)
+    path:(40,n,2)
+    Y_fv:(40,n,16)
+    feature_map:(32,80,80)
+    hidden:(n,48)
+    return:(n,48) (n,36*48)
     '''
-    H = feature_map.shape[2]
-    W = feature_map.shape[3]
-    hx = torch.zeros((hidden.shape[0],96),device=torch.device(self.device))
-    for k,_ in enumerate(range(self.batch_size)):
-      #print(k)
-      #print(type(k))
-      #t=input()
-      for j in range(nums_agent):
-        # tensor(2)
-        loc_agent = path[index][k*nums_agent+j].detach()
-        # tensor(nums_agent,2)
-        loc_others = torch.zeros((nums_agent-1, 2), device=torch.device(self.device)).detach()
-        loc_other_index = []
-        count = 0
-        for t in range(nums_agent):
-          if t != j:
-            loc_others[count] = path[index,k*nums_agent+t,:].detach()
-            loc_other_index.append(t)
-            count += 1
-        u = int(H/2-int(loc_agent[1]))
-        v = int(loc_agent[0])
-        # feature_agent:(32)
-        feature_agent = feature_map[k, :, u, v]
-        # sp: tensor(6,6,48)
-        sp = torch.zeros((self.social_pooling_size[0],self.social_pooling_size[1],hidden.shape[1]), device=torch.device(self.device))
-        # sp_c: count the numbers in (6,6)
-        sp_c = torch.zeros((self.social_pooling_size[0],self.social_pooling_size[1]), device=torch.device(self.device))
-        for i in range(loc_others.shape[0]):
-          # loc:tensor(2)
-          loc = loc_others[i]
-          # dist:tensor(1)
-          dist = self.compute_dist(loc, loc_agent)
-          if self.radius_range[0] <= dist <= self.radius_range[1]:
-            theta = self.compute_theta(loc_agent, loc)
-            u = int((dist-self.radius_range[0])//self.radius_step)
-            v = int((theta//self.theta_step))
-            sp[u,v] += hidden[k*nums_agent+loc_other_index[i]]
-            sp_c[u,v] += 1
-        for i in range(self.social_pooling_size[0]):
-          for j in range(self.social_pooling_size[1]):
-            if sp_c[i][j] > 1.0:
-              sp[i][j] = sp[i][j]/sp_c[i][j]
-        #(6,6,48)->(6*6*48)
-        sp = sp.view(self.social_pooling_size[0]*self.social_pooling_size[1]*hidden.shape[1])
-        #(6*6*48)->(48)
-        fsp = self.fc_scf(sp)
-        input_x = torch.cat((feature_agent,Y_fv[index,k*nums_agent+j],fsp),0)
-        hx[k*nums_agent+j] = input_x
-    return hx
+    H = feature_map.shape[1]
+    W = feature_map.shape[2]
+    hx = torch.zeros((nums_agent,48),device=torch.device(self.device))
+    sps = torch.zeros((nums_agent,36*48),device=torch.device(self.device))
+    #print(k)
+    #print(type(k))
+    #t=input()
+    #print("begin scf")
+    for j in range(nums_agent):
+      # tensor(2)
+      loc_agent = path[index,j]
+      # tensor(nums_agent,2)
+      loc_others = torch.zeros((nums_agent-1, 2), device=torch.device(self.device))
+      loc_other_index = []
+      count = 0
+      for t in range(nums_agent):
+        if t != j:
+          loc_others[count] = path[index,t]
+          loc_other_index.append(t)
+          count += 1
+      u = int(H/2-int(loc_agent[1]))
+      v = int(loc_agent[0])
+      # feature_agent:(32)
+      feature_agent = feature_map[:, u, v]
+      # sp: tensor(6,6,48)
+      sp = torch.zeros((self.social_pooling_size[0],self.social_pooling_size[1],hidden.shape[1]), device=torch.device(self.device))
+      # sp_c: count the numbers in (6,6)
+      sp_c = torch.zeros((self.social_pooling_size[0],self.social_pooling_size[1]), device=torch.device(self.device))
+      #print("after spc")
+      for i in range(loc_others.shape[0]):
+        # loc:tensor(2)
+        loc = loc_others[i]
+        # dist:tensor(1)
+        dist = self.compute_dist(loc, loc_agent)
+        if self.radius_range[0] <= dist <= self.radius_range[1]:
+          theta = self.compute_theta(loc_agent, loc)
+          u = int((dist-self.radius_range[0])//self.radius_step)
+          v = int((theta//self.theta_step))
+          sp[u,v] += hidden[loc_other_index[i]]
+          sp_c[u,v] += 1
+      for i in range(self.social_pooling_size[0]):
+        for j in range(self.social_pooling_size[1]):
+          if sp_c[i][j] > 1.0:
+            sp[i][j] = sp[i][j]/sp_c[i][j]
+      #(6,6,48)->(6*6*48)
+      sp = sp.view(self.social_pooling_size[0]*self.social_pooling_size[1]*hidden.shape[1])
+      sps[j] = sp
+      #sp = torch.zeros(48)
+      #(6*6*48)->(48)
+      # print("after sp view")
+      # print(self.mul_lock.acquire())
+      #if (self.mul_lock.acquire()):
+      #   #print("begin lock")
+      #   self.mul_lock.locked()
+      #   print("begin fspcc")
+        #try:
+          #fsp = self.fc_scf(sp)
+        #finally:
+          #self.mul_lock.release()
+      #   print("end fspcc")
+      #   self.mul_lock.release()
+      #   print("release lock")
+      # print("after fsp")
+      input_x = torch.cat((feature_agent,Y_fv[index,j]),0)
+      hx[j] = input_x
+      #print("loop")
+    #print("end scf")
+    return hx,sps
 
   def compute_vel(self,path,current_location):
     '''
