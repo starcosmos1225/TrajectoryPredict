@@ -36,6 +36,8 @@ def train(cfg):
   print("device is {}".format(device))
   model = Model(sample_number=cfg.nums_sample,hz=cfg.frequent,device=device, batch_size=cfg.batch_size)
   model.to(device)
+  print(next(model.parameters()).is_cuda)
+  t=input()
   data_size = train_data_x.shape[0]
   #print(train_data_x.shape)
   #print(data_size)

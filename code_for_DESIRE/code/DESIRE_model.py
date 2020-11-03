@@ -76,12 +76,12 @@ class Model(nn.Module):
     H_delta = self.fc3(Hc)
     # sample k paths
     Y_path = torch.zeros((self.K,trajectory_data_y.shape[2],
-                          trajectory_data_y.shape[0], trajectory_data_y.shape[1])).to(self.device)
+                          trajectory_data_y.shape[0], trajectory_data_y.shape[1]), device=torch.device(self.device))
     #Z K*(n,48)
     # Z = []
     # record each sample's score
-    scores = torch.zeros((self.K, trajectory_data_y.shape[0], 1)).to(self.device)
-    delta_Y_list = torch.zeros(Y_path.shape).to(self.device)
+    scores = torch.zeros((self.K, trajectory_data_y.shape[0], 1), device=torch.device(self.device))
+    delta_Y_list = torch.zeros(Y_path.shape, device=torch.device(self.device))
     torch.cuda.synchronize()
     end = time.time()
     print("the pre train time:{}".format(end-start))
@@ -90,7 +90,7 @@ class Model(nn.Module):
     for i in range(self.K):
       #(batch_size*n,48)
       #print("K:{}".format(i))
-      normalize = torch.randn(size_n).to(self.device)
+      normalize = torch.randn((size_n), device=torch.device(self.device))
       #z_i:(batch_size*n,48)
       z_i = H_delta.mul(normalize)+H_miu
       # Z.append(z_i)
@@ -100,7 +100,7 @@ class Model(nn.Module):
       # xz_i:(batch_size*n,48)
       xz_i = new_Hx.mul(beta_z)
       # padding 0 for gru input:(batch_size*n,48)->(40,batch_size*n,48)
-      xz = torch.zeros((sequence_y,size_n[0],size_n[1])).to(self.device)
+      xz = torch.zeros((sequence_y,size_n[0],size_n[1]), device=torch.device(self.device))
       xz[0] = xz_i
       # reconstruction
       Hxz_i,h_x_xz = self.sample_reconstruction(xz)

@@ -105,9 +105,9 @@ class SCF_GRUCell(nn.Module):
         # feature_agent:(32)
         feature_agent = feature_img[ :, u, v]
         # sp: tensor(6,6,48)
-        sp = torch.zeros((self.social_pooling_size[0],self.social_pooling_size[1],self.hidden_size)).to(DEVICE)
+        sp = torch.zeros((self.social_pooling_size[0],self.social_pooling_size[1],self.hidden_size), device=torch.device(self.device))
         # sp_c: count the numbers in (6,6)
-        sp_c = torch.zeros((self.social_pooling_size[0],self.social_pooling_size[1])).to(DEVICE)
+        sp_c = torch.zeros((self.social_pooling_size[0],self.social_pooling_size[1]), device=torch.device(self.device))
         # print(loc_others.shape[0])
         # print("len:{}".format(len(loc_other_index)))
         # t=input
@@ -177,7 +177,7 @@ class SCF_GRULayer(nn.Module):
         nums_agent = int(path.shape[1]/self.batch_size)
         outputs = []
         #state:tensor(n,hidden)
-        state = torch.zeros((path.shape[1], self.cell.hidden_size)).to(DEVICE)
+        state = torch.zeros((path.shape[1], self.cell.hidden_size), device=torch.device(self.device))
         # print(f_img.shape)
         # print("batch_size:{}".format(self.batch_size))
         for i in range(self.numbers_layers):
@@ -187,7 +187,7 @@ class SCF_GRULayer(nn.Module):
                 # tensor(2)
                 loc_agent = path[i][k*nums_agent+j]
                 # tensor(nums_agent,2)
-                loc_other = torch.zeros((nums_agent-1, 2)).to(DEVICE)
+                loc_other = torch.zeros((nums_agent-1, 2), device=torch.device(self.device))
                 loc_other_index = []
                 index = 0
                 for t in range(nums_agent):
