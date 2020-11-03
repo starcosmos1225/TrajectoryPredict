@@ -35,14 +35,13 @@ def train(cfg):
   device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
   print("device is {}".format(device))
   model = Model(sample_number=cfg.nums_sample,hz=cfg.frequent,device=device, batch_size=cfg.batch_size)
+  optimizer = torch.optim.Adam(model.parameters(),lr=cfg.learning_rate)
   model.to(device)
-  print(next(model.parameters()).is_cuda)
-  t=input()
   data_size = train_data_x.shape[0]
   #print(train_data_x.shape)
   #print(data_size)
   #order = np.arange(data_size)
-  optimizer = torch.optim.Adam(model.parameters(),lr=cfg.learning_rate)
+  
   #data_size = train_data_x.shape[0]
   for epoch_i in range(cfg.epoch):
     print("the epoch is :{}".format(epoch_i))
@@ -51,7 +50,8 @@ def train(cfg):
     #np.random.shuffle(order)
     total_loss = torch.zeros(1)
     for index in range(0,data_size,cfg.batch_size):
-      torch.cuda.synchronize()
+      if torch.cuda.is_available():
+        torch.cuda.synchronize()
       start = time.time()
       print("train index is :{}\r".format(index),end="")
       # train_trajectory_x is [batch_size,n,2,20]
@@ -61,22 +61,16 @@ def train(cfg):
       
       # train_img_i is [batch_size,4,160,160]
       train_img_i = train_img[index:index+cfg.batch_size].to(device)
-      torch.cuda.synchronize()
-      end = time.time()
-      print("the pre time:{}".format(end-start))
-      torch.cuda.synchronize()
-      start = time.time()
       loss = model.train(train_trajectory_x, train_trajectory_y, train_img_i)
+      if torch.cuda.is_available():
+        torch.cuda.synchronize()
+      start = time.time()
       loss.backward()
       torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
       optimizer.step()
-      torch.cuda.synchronize()
-      end = time.time()
-      print("the train time:{}".format(end-start))
-      torch.cuda.synchronize()
-      start = time.time()
       total_loss += loss.detach().item()
-      torch.cuda.synchronize()
+      if torch.cuda.is_available():
+        torch.cuda.synchronize()
       end = time.time()
       print("the post time:{}".format(end-start))
     if epoch_i %60==0:
