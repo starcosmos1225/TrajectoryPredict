@@ -27,13 +27,17 @@ def main():
     parser.add_argument('--save_dir', default='model/saved/')
     parser.add_argument('--file_dir', default='/home/hxy/Documents/TrajectoryPredict/code_for_DESIRE/data/train/')
     parser.add_argument('--batch_size',type=int,default=2)
+    parser.add_argument('--use_gpu',type=bool,default=False)
     cfg = parser.parse_args()
     train(cfg)
 
 def train(cfg):
   train_data_x, train_data_y, train_img = load_data(cfg.file_dir,max_size=250)
   cvae_device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-  refine_device = torch.device("cpu")
+  if cfg.use_gpu:
+    refine_device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+  else:
+    refine_device = torch.device("cpu")
   print("cvae device is {}".format(cvae_device))
   cvae_model = CVAEModel(sample_number=cfg.nums_sample,device=cvae_device, batch_size=cfg.batch_size)
   refine_model = RefineModel(sample_number=cfg.nums_sample,hz=cfg.frequent,device=refine_device, batch_size=cfg.batch_size)
