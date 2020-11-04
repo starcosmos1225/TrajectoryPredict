@@ -214,7 +214,7 @@ class RefineModel(nn.Module):
       scores:the K paths' scores with cell(K,batch_size*n, 1)
     '''
     bn = hx.shape[0]
-    hx = hx.repeat((self.K,1))
+    hx = hx.repeat((self.K,1)).to(self.device)
     
     sequence_y = y_path.shape[1]
     
@@ -309,7 +309,7 @@ class RefineModel(nn.Module):
     return:(k,n,48) (k,n,36*48)
     '''
     #(32,80,80)->(K,32,80,80)
-    f_map = feature_map.unsqueeze(dim=0).repeat((self.K,1,1,1))
+    f_map = feature_map.unsqueeze(dim=0).repeat((self.K,1,1,1)).to(self.device)
     H = feature_map.shape[1]
     hx = []#torch.zeros((nums_agent,48),device=torch.device(self.device))
     sps = []#torch.zeros((nums_agent,36*48),device=torch.device(self.device))
@@ -359,7 +359,7 @@ class RefineModel(nn.Module):
           sp[dist_index,loc_index] = hidden[loc_other_index[i]]
           sp_c[dist_index,loc_index] += 1
       sp_c = torch.where(sp_c == 0, sp_one, sp_c)
-      sp_c = sp_c.unsqueeze(dim=-1).repeat([1,1,hidden.shape[1]])
+      sp_c = sp_c.unsqueeze(dim=-1).repeat([1,1,hidden.shape[1]]).to(self.device)
       sp = sp/sp_c
       #(k,6*6,48)->(k,6*6*48)
       #t=input()
@@ -382,7 +382,7 @@ class RefineModel(nn.Module):
     sequence = path.shape[1]
     vel = torch.zeros(path.shape).to(self.device).detach()
     # (batch_size*n,2)->(K,batch_size*n,2)
-    loc = current_location.unsqueeze(dim=0).repeat((self.K,1,1))
+    loc = current_location.unsqueeze(dim=0).repeat((self.K,1,1)).to(self.device)
     for j in range(sequence):
       if j == 0:
         vel[:,j,:,:] = (path[:,j,:,:]-loc)
@@ -398,7 +398,7 @@ class RefineModel(nn.Module):
     Y:(batch_size*n,2,40)
     '''
     #(n,2,40)->(40,n,2)->(K,40,n,2)
-    Y_resize = Y.permute(2,0,1).unsqueeze(dim=0).repeat((self.K,1,1,1))
+    Y_resize = Y.permute(2,0,1).unsqueeze(dim=0).repeat((self.K,1,1,1)).to(self.device)
     #loss = torch.zeros(1).to(self.device)
     #for i in range(self.K):
       #dist (40, n)
@@ -415,7 +415,7 @@ class RefineModel(nn.Module):
     Y_i:predict path:K list with (k,40,batch_size*n,2)
     Y  :ground truth: (40,batch_size*n,2)
     '''
-    Y_ = Y.unsqueeze(dim=0).repeat((self.K,1,1,1))
+    Y_ = Y.unsqueeze(dim=0).repeat((self.K,1,1,1)).to(self.device)
     return (Y_i-Y_).norm()/self.K/Y.shape[1]
 
   def train(self, hx,current_location,y_path,feature_image,trajectory_data_y):
