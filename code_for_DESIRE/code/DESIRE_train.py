@@ -79,7 +79,7 @@ def train(cfg):
       start = time.time()
       hx = hx.to(refine_device).detach()
       y_path = y_path.to(refine_device).detach()
-      total_loss += loss_cvae.detach().to(refine_device)
+      total_loss += loss_cvae.detach().cpu()
       loss_cvae.backward()
       #t=input('a')
       torch.nn.utils.clip_grad_norm_(cvae_model.parameters(),1.0)
@@ -92,7 +92,7 @@ def train(cfg):
       if torch.cuda.is_available():
         torch.cuda.synchronize()
       start = time.time()
-      total_loss+= loss_refine.detach()
+      total_loss+= loss_refine.detach().cpu()
       loss_refine.backward()
       torch.nn.utils.clip_grad_norm_(refine_model.parameters(),1.0)
       refine_optimizer.step()
