@@ -40,9 +40,8 @@ class CVAEModel(nn.Module):
       H_miu: (batch_size*n, 48)
       H_delta: (batch_size*n, 48)
     '''
-    if torch.cuda.is_available():
-        torch.cuda.synchronize()
-    start = time.time()
+    #print(trajectory_data_x)
+    #t=input()
     sequence_x = trajectory_data_x.shape[2]
     sequence_y = trajectory_data_y.shape[2]
     bn = trajectory_data_x.shape[0]
@@ -51,8 +50,10 @@ class CVAEModel(nn.Module):
     # cnn feature map （batch_size,4,160,160）->(batch_size,32,80,80)
     #feature_map = self.cnn_map(image_data)
     # Encoder 1 and 2
-    # Hx :(batch_size,10,2,20)->(batch_size,10,16,20)
+    # Hx :(batch_size*n,2,20)->(batch_size*n,16,20)
     Hx = self.rnn_encoder1(trajectory_data_x)
+    #print(Hx.shape)
+    #t=input()
     # (batch_size*n,16,20)->(20,batch_size*n,16)
     Hx = Hx.permute(2, 0, 1)
     # (20,batch_size*n,16)->(20,batch_size*n,48)
@@ -82,13 +83,6 @@ class CVAEModel(nn.Module):
     #Z K*(n,48)
     # Z = []
     # record each sample's score
-    if torch.cuda.is_available():
-        torch.cuda.synchronize()
-    end = time.time()
-    print("the pre train time:{}".format(end-start))
-    if torch.cuda.is_available():
-        torch.cuda.synchronize()
-    start = time.time()
     for i in range(self.K):
       #(batch_size*n,48)
       #print("K:{}".format(i))
@@ -118,13 +112,6 @@ class CVAEModel(nn.Module):
       Y_i = self.fc5(Hxz_i)
       #record the predict path
       Y_path.append(Y_i)
-    if torch.cuda.is_available():
-        torch.cuda.synchronize()
-    end = time.time()
-    print("the for time:{}".format(end-start))
-    if torch.cuda.is_available():
-        torch.cuda.synchronize()
-    start = time.time()
     return new_Hx,torch.stack(Y_path), H_miu,H_delta
 
 
@@ -172,7 +159,7 @@ class CVAEModel(nn.Module):
     if torch.cuda.is_available():
       torch.cuda.synchronize()
     end = time.time()
-    print("the forward time:{}".format(end-start))
+    print("the cvae forward time:{}".format(end-start))
     if torch.cuda.is_available():
       torch.cuda.synchronize()
     start = time.time()
@@ -182,24 +169,24 @@ class CVAEModel(nn.Module):
       torch.cuda.synchronize()
     end = time.time()
     loss = loss_distance+loss_kld
-    print("the loss compute time:{}".format(end-start))
+    print("the cvae loss compute time:{}".format(end-start))
     return hx,predict_path,loss
 
   def build(self):
     self.rnn_encoder1 = nn.Sequential(nn.Conv1d(2,16,kernel_size=3,padding=1),
                                       nn.ReLU())
-    self.encoder1_gru = nn.GRU(16,48,20)
+    self.encoder1_gru = nn.GRU(16,48,1)
     self.rnn_encoder2 = nn.Sequential(nn.Conv1d(2,16,kernel_size=1),
                                       nn.ReLU())
                                   
-    self.encoder2_gru = nn.GRU(16,48,40)
+    self.encoder2_gru = nn.GRU(16,48,1)
     #must concat first: (48,48)->96
     self.fc1 = nn.Sequential(nn.Linear(96,48),nn.ReLU())
     self.fc2 = nn.Linear(48,48)
     self.fc3 = nn.Sequential(nn.Linear(48,48),HalfExp())
     self.fc4 = nn.Sequential(nn.Linear(48,48),nn.Softmax(dim=1))
     # multiplication
-    self.sample_reconstruction = nn.GRU(48,48,40)
+    self.sample_reconstruction = nn.GRU(48,48,1)
     self.fc5 = nn.Linear(48,2)
 
 class RefineModel(nn.Module):
@@ -226,100 +213,103 @@ class RefineModel(nn.Module):
       deltaY:the K delta path with cell(K,40, batch_size*n, 2)
       scores:the K paths' scores with cell(K,batch_size*n, 1)
     '''
-    if torch.cuda.is_available():
-        torch.cuda.synchronize()
-    start = time.time()
-    sequence_y = y_path.shape[1]
     bn = hx.shape[0]
+    hx = hx.repeat((self.K,1))
+    
+    sequence_y = y_path.shape[1]
+    
     n_agents = int(bn/self.batch_size)
     # cnn feature map （batch_size,4,160,160）->(batch_size,32,80,80)
     feature_map = self.cnn_map(image_data)
-    # Encoder 1 and 2
-    # Hx :(batch_size,10,2,20)->(batch_size,10,16,20)
-    # record each sample's score
-    scores = []#torch.zeros((self.K, trajectory_data_y.shape[0], 1), device=torch.device(self.device))
-    delta_Y_list = []#torch.zeros(Y_path.shape, device=torch.device(self.device))
-    for i in range(self.K):
-      #(batch_size*n,48)
-      #print("K:{}".format(i))
-      # Y_velocity is velocity tensor(40,batch_size*n,2)
-      Y_velocity = self.compute_vel(y_path[i], current_location)
-      #print(Y_velocity.shape)
-      #(40,batch_size*n,2)->(40,batch_size*n,16)
-      Y_fv = self.fc_vel(Y_velocity)
-      # tensor(40,batch_size*n,48)
-      scf_gru_hidden = []
-      # (batch_size*n,48)
-      for j in range(self.iteration):
-        for it in range(sequence_y):
-          lhalf_i = None
-          sps = None
-          for batch in range(self.batch_size):
-            if batch==0:
-              lhalf_i,sps = self.scf(y_path[i,:,batch:batch+n_agents,:],Y_fv[:,batch:batch+n_agents,:],
-                                                                feature_map[batch],hx[batch:batch+n_agents],n_agents,it)
-            else:
-              tmp_l,tmp_s = self.scf(y_path[i,:,batch:batch+n_agents,:],Y_fv[:,batch:batch+n_agents,:],
-                                                                feature_map[batch],hx[batch:batch+n_agents],n_agents,it)
-              lhalf_i = torch.cat((lhalf_i,tmp_l),0)
-              sps = torch.cat((sps,tmp_s),0)
-            #print(lhalf_i.shape)
-            #t=input()                                                   
-          rhalf_i = self.fc_scf(sps)
-          x_i = torch.cat((lhalf_i,rhalf_i),1)
-          hx = self.GRU_cell(x_i, hx)
-          if j==0:
-            scf_gru_hidden.append(hx)
-          else:
-            scf_gru_hidden[it] = hx
-        #(batch_size*n,48)->(batch_size*n,80)->(batch_size*n,2,40)->(40,batch_size*n,2)
-        deltaY = self.fc_dy(hx).view(hx.shape[0],2,-1).permute(2, 0, 1)
-        y_path[i] = y_path[i]+deltaY
-      scf_gru_hidden = torch.stack(scf_gru_hidden)
-      delta_Y_list.append(deltaY)
-      #(40,batch_size*n,48)->(40,batch_size*n,1)->(batch_size*n,1)
-      score = torch.sum(self.fc_score(scf_gru_hidden), dim=0)
-      scores.append(score)
     if torch.cuda.is_available():
-        torch.cuda.synchronize()
-    end = time.time()
-    print("the for time:{}".format(end-start))
-    if torch.cuda.is_available():
-        torch.cuda.synchronize()
+      torch.cuda.synchronize()
     start = time.time()
-    return torch.stack(delta_Y_list), torch.stack(scores)
+    # Y_velocity is velocity tensor(k,40,batch_size*n,2)
+    Y_velocity = self.compute_vel(y_path, current_location)
+    
+    #(40,batch_size*n,2)->(40,batch_size*n,16)
+    Y_fv = self.fc_vel(Y_velocity)
+    # tensor(40,batch_size*n,48)
+    scf_gru_hidden = []
+    # (batch_size*n,48)
+    for j in range(self.iteration):
+      for it in range(sequence_y):
+        lhalf_i = None
+        sps = None
+        for batch in range(self.batch_size):
+          if batch==0:
+            #(k,n,48) (k,n,36*48)
+            lhalf_i,sps = self.scf(y_path[:,:,batch:batch+n_agents,:],Y_fv[:,:,batch:batch+n_agents,:],
+                                                              feature_map[batch],hx[batch:batch+n_agents],n_agents,it)
+          else:
+            #(k,n,48) (k,n,36*48)
+            tmp_l,tmp_s = self.scf(y_path[:,:,batch:batch+n_agents,:],Y_fv[:,:,batch:batch+n_agents,:],
+                                                              feature_map[batch],hx[batch:batch+n_agents],n_agents,it)
+            lhalf_i = torch.cat((lhalf_i,tmp_l),1)
+            sps = torch.cat((sps,tmp_s),1)
+          #print(lhalf_i.shape)
+          #t=input()                     
+        # (k,batch_size*n,36*48)->(k,batch_size*n,48)                              
+        rhalf_i = self.fc_scf(sps)
+        #(k,batch_size*n,48)+(k,batch_size*n,48)=(k,batch_size*n,96)->(k*batch_size*n,96)
+        x_i = torch.cat((lhalf_i,rhalf_i),2).view(self.K*self.batch_size*n_agents,-1)
+        #(k*batch_size*n,96)->(k*batch_size*n,48)
+        hx = self.GRU_cell(x_i, hx)
+        #print(hx.shape)100
+        #t=input()
+        if j==0:
+          scf_gru_hidden.append(hx)
+        else:
+          scf_gru_hidden[it] = hx
+      #(k*batch_size*n,48)->(k*batch_size*n,80)->(K,batch_size*n,2,40)->(K,40,batch_size*n,2)
+      deltaY = self.fc_dy(hx).view(self.K,bn,2,-1).permute(0,3, 1, 2).contiguous()
+      y_path = (y_path+deltaY).detach()
+    #40 list of (k*batch_size*n,48)->(40,k*batch_size*n,48)
+    scf_gru_hidden = torch.stack(scf_gru_hidden)
+    
+    #delta_Y_list.append(deltaY)
+    #(40,k*batch_size*n,48)->(40,k*batch_size*n,1)->(k*batch_size*n,1)->(k,batch_size*n,1)
+    score = torch.sum(self.fc_score(scf_gru_hidden), dim=0).view(self.K,self.batch_size*n_agents,1)
+    #scores.append(score)
+    return deltaY, score
   def compute_dist(self,loc_a,loc_b):
     '''
-    loc_a:tensor(2)
-    loc_b:tensor(2)
-    return: distance (a-b) tensor(1) float
+    loc_a:tensor(k,2)
+    loc_b:tensor(k,2)
+    return: distance (a-b) tensor(k) float
     '''
-    return torch.norm(loc_a-loc_b)
+    return torch.norm(loc_a-loc_b,dim=1)
   
   def compute_theta(self,loc_a,loc_b):
     '''
-    loc_a:tensor(2)
-    loc_b:tensor(2)
-    return: angle (b-a) tensor(1) float(0~2pi)
+    loc_a:tensor(k,2)
+    loc_b:tensor(k,2)
+    return: angle (b-a) tensor(k,1) float(0~2pi)
     '''
+    l = loc_a.shape[0]
     c = loc_b-loc_a
-    dist = torch.norm(c)
-    costheta = c[0]/dist
-    if (c[1]<0):
-      theta = 2*math.pi - costheta.acos()
-    else:
-      theta = costheta.acos()
-    return theta
+    dist = torch.norm(c,dim=1)
+    min_dist = torch.ones_like(dist)*1e-10
+    dist = torch.where(dist<1e-10,min_dist,dist)
+    costheta = c[:,0]/dist
+    for i in range(l):    
+      if c[i,1]<0:
+        costheta[i] = 2*math.pi - costheta[i].acos()
+      else:
+        costheta[i] = costheta[i].acos()
+    return costheta
 
 
   def scf(self,path,Y_fv,feature_map,hidden,nums_agent,index):
     '''
-    path:(40,n,2)
-    Y_fv:(40,n,16)
+    path:(k,40,n,2)
+    Y_fv:(k,40,n,16)
     feature_map:(32,80,80)
     hidden:(n,48)
-    return:(n,48) (n,36*48)
+    return:(k,n,48) (k,n,36*48)
     '''
+    #(32,80,80)->(K,32,80,80)
+    f_map = feature_map.unsqueeze(dim=0).repeat((self.K,1,1,1))
     H = feature_map.shape[1]
     hx = []#torch.zeros((nums_agent,48),device=torch.device(self.device))
     sps = []#torch.zeros((nums_agent,36*48),device=torch.device(self.device))
@@ -327,92 +317,106 @@ class RefineModel(nn.Module):
     #print(type(k))
     #t=input()
     #print("begin scf")
+    k_list = torch.arange(0,self.K,1).long()
     for j in range(nums_agent):
-      # tensor(2)
-      loc_agent = path[index,j]
-      # tensor(nums_agent,2)
+      #print("index:{} j:{}".format(index,j))
+      # tensor(k,2)
+      loc_agent = path[:,index,j,:]
+      # tensor(nums_agent-1,k,2)
       loc_others = []#torch.zeros((nums_agent-1, 2), device=torch.device(self.device))
       loc_other_index = []
       count = 0
       for t in range(nums_agent):
         if t != j:
-          loc_others.append(path[index,t])
+          # (k,2)
+          loc_others.append(path[:,index,t])
           loc_other_index.append(t)
           count += 1
-      loc_others = torch.stack(loc_others)
-      u = int(H/2-int(loc_agent[1]))
-      v = int(loc_agent[0])
-      # feature_agent:(32)
-      feature_agent = feature_map[:, u, v]
-      # sp: tensor(6,6,48)
-      sp = torch.zeros((self.social_pooling_size[0]*self.social_pooling_size[1],hidden.shape[1]), device=torch.device(self.device))
-      # sp_c: count the numbers in (6,6)
-      sp_c = torch.zeros(self.social_pooling_size[0]*self.social_pooling_size[1], device=torch.device(self.device)).detach()
+      #list(k,2)->(n-1,k,2)->(k,n-1,2)
+      loc_others = torch.stack(loc_others).permute(1,0,2)
+      u = int(H/2)-loc_agent[:,1].long()
+      v = int(H/2)-loc_agent[:,0].long()
+      # feature_agent:(k,32)
+      feature_agent = f_map[k_list,:, u, v]
+      # sp: tensor(K,6,6,48)
+      sp = torch.zeros((self.K,self.social_pooling_size[0]*self.social_pooling_size[1],hidden.shape[1]), device=torch.device(self.device))
+      # sp_c: count the numbers in (K,6,6)
+      sp_c = torch.zeros((self.K,self.social_pooling_size[0]*self.social_pooling_size[1]), device=torch.device(self.device),dtype=torch.int32).detach()
+      sp_one = torch.ones_like(sp_c)
       #print("after spc")
-      for i in range(loc_others.shape[0]):
-        # loc:tensor(2)
-        loc = loc_others[i]
-        # dist:tensor(1)
+      for i in range(loc_others.shape[1]):
+        # loc:tensor(k,2)
+        loc = loc_others[:,i,:]
+        # dist:tensor(k)
         dist = self.compute_dist(loc, loc_agent).detach()
-        if self.radius_range[0] <= dist <= self.radius_range[1]:
-          theta = self.compute_theta(loc_agent, loc).detach()
-          u = int((dist-self.radius_range[0])//self.radius_step)
-          v = int((theta//self.theta_step))
-          index = u*self.social_pooling_size[1]+v
-          sp[index] = hidden[loc_other_index[i]]
-          sp_c[index] += 1
-      for i in range(self.social_pooling_size[0]*self.social_pooling_size[1]):
-          if sp_c[i] > 1.0:
-            sp[i] = sp[i]/sp_c[i]
-      #(6,6,48)->(6*6*48)
-      sp = sp.view(self.social_pooling_size[0]*self.social_pooling_size[1]*hidden.shape[1])
+        dist_index = torch.where((dist<=self.radius_range[1])&(dist>=self.radius_range[0]))[0]
+        if dist_index.shape[0]!=0:
+          theta = self.compute_theta(loc_agent[dist_index,:], loc[dist_index,:]).detach()
+          u = ((dist[dist_index]-self.radius_range[0])/self.radius_step).int()
+          v = (theta/self.theta_step).int()
+          #index: (k)
+          loc_index = u*self.social_pooling_size[1]+v
+          sp[dist_index,loc_index] = hidden[loc_other_index[i]]
+          sp_c[dist_index,loc_index] += 1
+      sp_c = torch.where(sp_c == 0, sp_one, sp_c)
+      sp_c = sp_c.unsqueeze(dim=-1).repeat([1,1,hidden.shape[1]])
+      sp = sp/sp_c
+      #(k,6*6,48)->(k,6*6*48)
+      #t=input()
+      sp = sp.view((self.K,self.social_pooling_size[0]*self.social_pooling_size[1]*hidden.shape[1]))
       sps.append(sp)
-      input_x = torch.cat((feature_agent,Y_fv[index,j]),0)
+      #(k,32)+(k,16)
+      #print(feature_agent.shape)
+      #print(Y_fv[:,index,j,:].shape)
+      #t=input()
+      #print(Y_fv.shape)
+      input_x = torch.cat((feature_agent,Y_fv[:,index,j,:]),1)
       hx.append(input_x)
-    return torch.stack(hx),torch.stack(sps)
+    return torch.stack(hx).permute(1,0,2),torch.stack(sps).permute(1,0,2)
 
   def compute_vel(self,path,current_location):
     '''
-    path:tensor(40,batch_size*n,2)
+    path:tensor(k,40,batch_size*n,2)
     current_location:the current location for agents.Tensor with size(batch_size*n,2)
     '''
-    sequence = path.shape[0]
+    sequence = path.shape[1]
     vel = torch.zeros(path.shape).to(self.device).detach()
+    # (batch_size*n,2)->(K,batch_size*n,2)
+    loc = current_location.unsqueeze(dim=0).repeat((self.K,1,1))
     for j in range(sequence):
       if j == 0:
-        vel[j] = (path[j]-current_location)*self.hz
+        vel[:,j,:,:] = (path[:,j,:,:]-loc)
       else:
-        vel[j] = (path[j]-path[j-1])*self.hz
+        vel[:,j,:,:] = (path[:,j,:,:]-path[:,j-1,:,:])
+    vel = vel*self.hz
     return vel
 
   def compute_cross_entropy(self,oldY,newY,Y):
     '''
     oldY:(K,40,batch_size*n,2)
     newY:(K,40,batch_size*n,2)
-    Y:(n,2,40)
+    Y:(batch_size*n,2,40)
     '''
-    Y_resize = Y.permute(2,0,1)
-    loss = torch.zeros(1).to(self.device)
-    for i in range(self.K):
+    #(n,2,40)->(40,n,2)->(K,40,n,2)
+    Y_resize = Y.permute(2,0,1).unsqueeze(dim=0).repeat((self.K,1,1,1))
+    #loss = torch.zeros(1).to(self.device)
+    #for i in range(self.K):
       #dist (40, n)
-      old_d = torch.max(torch.abs(oldY[i]-Y_resize),dim=2).values
-      new_d = torch.max(torch.abs(newY[i]-Y_resize),dim=2).values
-      # P, Q (40, n)
-      P = func.softmax(old_d,dim=0)
-      Q = func.softmax(new_d,dim=0)
-      Hpq = torch.sum(-P*torch.log(Q))
-      loss += Hpq
-    return loss
+    old_d = torch.max(torch.abs(oldY-Y_resize),dim=2).values
+    new_d = torch.max(torch.abs(newY-Y_resize),dim=2).values
+    # P, Q (40, n)
+    P = func.softmax(old_d,dim=0)
+    Q = func.softmax(new_d,dim=0)
+    Hpq = torch.sum(-P*torch.log(Q))
+    return Hpq
 
   def compute_regression(self,Y_i,Y):
     '''
-    Y_i:predict path:K list with (40,batch_size*n,2)
+    Y_i:predict path:K list with (k,40,batch_size*n,2)
     Y  :ground truth: (40,batch_size*n,2)
     '''
-    loss_sum = torch.zeros(1).to(self.device)
-    for i in range(self.K):
-      loss_sum += (Y_i[i]-Y).norm()
-    return loss_sum/self.K/Y.shape[1]
+    Y_ = Y.unsqueeze(dim=0).repeat((self.K,1,1,1))
+    return (Y_i-Y_).norm()/self.K/Y.shape[1]
 
   def train(self, hx,current_location,y_path,feature_image,trajectory_data_y):
     '''
@@ -431,13 +435,10 @@ class RefineModel(nn.Module):
       torch.cuda.synchronize()
     start = time.time()
     delta_y,scores = self.forward(hx,current_location,y_path,feature_image)
-    #print(predict_path.shape)
-    #print(scores.shape)
-    #t=input()
     if torch.cuda.is_available():
       torch.cuda.synchronize()
     end = time.time()
-    print("the forward time:{}".format(end-start))
+    print("the refine mode forward time:{}".format(end-start))
     if torch.cuda.is_available():
       torch.cuda.synchronize()
     start = time.time()
@@ -452,22 +453,7 @@ class RefineModel(nn.Module):
     return loss
 
   def build(self):
-    self.rnn_encoder1 = nn.Sequential(nn.Conv1d(2,16,kernel_size=3,padding=1),
-                                      nn.ReLU())
-    self.encoder1_gru = nn.GRU(16,48,20)
-    self.rnn_encoder2 = nn.Sequential(nn.Conv1d(2,16,kernel_size=1),
-                                      nn.ReLU())
-                                  
-    self.encoder2_gru = nn.GRU(16,48,40)
-    #must concat first: (48,48)->96
-    self.fc1 = nn.Sequential(nn.Linear(96,48),nn.ReLU())
-    self.fc2 = nn.Linear(48,48)
-    self.fc3 = nn.Sequential(nn.Linear(48,48),HalfExp())
-    self.fc4 = nn.Sequential(nn.Linear(48,48),nn.Softmax(dim=1))
-    # multiplication
-    self.sample_reconstruction = nn.GRU(48,48,40)
-    self.fc5 = nn.Linear(48,2)
-    
+   
     # CNN for semantic map
     self.cnn_map = nn.Sequential(nn.Conv2d(4,16,kernel_size=(5,5),stride=2,padding=(2,2)),
                                  nn.ReLU(),

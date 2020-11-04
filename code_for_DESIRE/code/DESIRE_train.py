@@ -31,7 +31,7 @@ def main():
     train(cfg)
 
 def train(cfg):
-  train_data_x, train_data_y, train_img = load_data(cfg.file_dir,max_size=50)
+  train_data_x, train_data_y, train_img = load_data(cfg.file_dir,max_size=250)
   cvae_device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
   refine_device = torch.device("cpu")
   print("cvae device is {}".format(cvae_device))
@@ -54,9 +54,6 @@ def train(cfg):
     #np.random.shuffle(order)
     total_loss = torch.zeros(1)
     for index in range(0,data_size,cfg.batch_size):
-      if torch.cuda.is_available():
-        torch.cuda.synchronize()
-      start = time.time()
       print("train index is :{}\r".format(index),end="")
       # train_trajectory_x is [batch_size,n,2,20]
       train_trajectory_x = train_data_x[index:index+cfg.batch_size]
@@ -73,17 +70,32 @@ def train(cfg):
       hx,y_path,loss_cvae = cvae_model.train(train_trajectory_x, train_trajectory_y)
       #print(hx.shape)
       #print(y_path.shape)
+      if torch.cuda.is_available():
+        torch.cuda.synchronize()
+      start = time.time()
       hx = hx.to(refine_device).detach()
       y_path = y_path.to(refine_device).detach()
+      total_loss += loss_cvae.detach()
       loss_cvae.backward()
       #t=input('a')
       torch.nn.utils.clip_grad_norm_(cvae_model.parameters(),1.0)
       cvae_optimizer.step()
+      if torch.cuda.is_available():
+        torch.cuda.synchronize()
+      end = time.time()
+      print("the cvea backward time:{}".format(end-start))
       loss_refine = refine_model.train(hx,current_location, y_path,train_img_i,train_data_y[index:index+cfg.batch_size])
+      if torch.cuda.is_available():
+        torch.cuda.synchronize()
+      start = time.time()
+      total_loss+= loss_refine.detach()
       loss_refine.backward()
       torch.nn.utils.clip_grad_norm_(refine_model.parameters(),1.0)
       refine_optimizer.step()
-      print("the total loss is:{}".format((loss_cvae.detach().to(refine_device)+loss_refine).item()))
+      if torch.cuda.is_available():
+        torch.cuda.synchronize()
+      end = time.time()
+      print("the refine backward time:{}".format(end-start))
       # if torch.cuda.is_available():
       #   torch.cuda.synchronize()
       # start = time.time()
