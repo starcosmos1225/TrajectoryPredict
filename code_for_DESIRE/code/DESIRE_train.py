@@ -75,7 +75,7 @@ def train(cfg):
       start = time.time()
       hx = hx.to(refine_device).detach()
       y_path = y_path.to(refine_device).detach()
-      total_loss += loss_cvae.detach()
+      total_loss += loss_cvae.detach().to(refine_device)
       loss_cvae.backward()
       #t=input('a')
       torch.nn.utils.clip_grad_norm_(cvae_model.parameters(),1.0)
