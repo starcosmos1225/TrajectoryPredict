@@ -319,8 +319,8 @@ class RefineModel(nn.Module):
     hidden:(batch_size*n,48)
     return:(k,batch_size*n,48) (k,batch_size*n,36*48)
     '''
-    #(batch_size,32,80,80)->(K,batch_size,32,80,80)
-    f_map = feature_map.unsqueeze(dim=0).repeat((self.K,1,1,1,1)).to(self.device)
+    #(batch_size,32,80,80)->(K*batch_size,32,80,80)
+    f_map = feature_map.repeat((self.K,1,1,1)).to(self.device)
     H = feature_map.shape[2]
     W = feature_map.shape[3]
     hx = []#torch.zeros((nums_agent,48),device=torch.device(self.device))
@@ -329,8 +329,21 @@ class RefineModel(nn.Module):
     #print(type(k))
     #t=input()
     #print("begin scf")
-    k_list = torch.arange(0,self.K,1).long()
-    batch_list = torch.arange(0,self.batch_size,1).long()
+    # k_list = torch.ones(self.K,device = torch.device(self.device),dtype=torch.int64)
+    # for i in range(self.batch_size):
+    #   if i==0:
+    #     k_list = 0*k_list
+    #   else:
+    #     k_list = torch.cat((k_list,i*torch.ones(self.K,device = torch.device(self.device),dtype=torch.int64)),0)
+    # print(k_list)
+    # t=input()
+    # batch_list = torch.ones(self.batch_size,device = torch.device(self.device),dtype=torch.int32)
+    # for i in range(self.K):
+    #   if i==0:
+    #     batch_list = 0*batch_list
+    #   else:
+    #     batch_list = torch.cat((batch_list,i*torch.ones(self.batch_size,device = torch.device(self.device),dtype=torch.int64)),0)
+    kb_list = torch.arange(0,self.K*self.batch_size,1)
     for j in range(nums_agent):
       # if torch.cuda.is_available():
       #   torch.cuda.synchronize()
@@ -350,11 +363,15 @@ class RefineModel(nn.Module):
           count += 1
       #list(k,batch_size,2)->(n-1,k,batch_size,2)
       loc_others = torch.stack(loc_others)
-      u = int(H/2)-loc_agent[:,:,1].long()
-      v = int(W/2)-loc_agent[:,:,0].long()
+      u = int(H/2)-loc_agent[:,:,1].reshape(self.K*self.batch_size).long()
+      v = int(W/2)-loc_agent[:,:,0].reshape(self.K*self.batch_size).long()
+      #print(u.shape)
+      #print(v.shape)
       #t=input()
-      # feature_agent:(k,batch_size,32)
-      feature_agent = f_map[k_list,batch_list, :,u, v]
+      # feature_agent:(k*batch_size,32)
+      feature_agent = f_map[kb_list,:,u, v].view(self.K,self.batch_size,32)
+      #print(feature_agent.shape)
+      #t=input()
       # sp: tensor(K,batch_size,6*6,48)
       sp = torch.zeros((self.K,self.batch_size,self.social_pooling_size[0]*self.social_pooling_size[1],hidden.shape[1]), device=torch.device(self.device))
       # sp_c: count the numbers in (K,batch_size,6*6)
@@ -365,9 +382,6 @@ class RefineModel(nn.Module):
       #   torch.cuda.synchronize()
       # end=time.time()
       # print("scf  before time is :{}".format(end-start))
-      if torch.cuda.is_available():
-        torch.cuda.synchronize()
-      start=time.time()
       for i in range(loc_others.shape[0]):
         # loc:tensor(k,batch_size,2)
         loc = loc_others[i,:,:,:]
