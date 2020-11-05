@@ -197,10 +197,10 @@ class RefineModel(nn.Module):
     self.device = device
     self.batch_size = batch_size
     self.iteration = nums_iteration
-    self.social_pooling_size=(6,6)
-    self.radius_range = (0.5,4)
+    self.social_pooling_size=torch.tensor([6,6],device=torch.device(self.device))
+    self.radius_range = torch.tensor([0.5,4.0],device=torch.device(self.device))
     self.radius_step = (self.radius_range[1]-self.radius_range[0])/self.social_pooling_size[0]
-    self.theta_step = (2*math.pi)/self.social_pooling_size[1]
+    self.theta_step = torch.tensor([2*math.pi],device=torch.device(self.device))/self.social_pooling_size[1]
     self.build()               
      
 
