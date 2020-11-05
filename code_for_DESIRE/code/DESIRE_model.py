@@ -533,6 +533,8 @@ class RefineModel(nn.Module):
     new_predict_path = y_path.detach()+delta_y
     loss_ce = self.compute_cross_entropy(init_y,new_predict_path,trajectory_data_y)
     loss_regression = self.compute_regression(new_predict_path,trajectory_data_y.permute(2,0,1))
+    print("ce:{}".format(loss_ce.cpu().item()))
+    print("regression:{}".format(loss_regression.cpu().item()))
     loss = loss_ce+loss_regression
     # if torch.cuda.is_available():
     #   torch.cuda.synchronize()
