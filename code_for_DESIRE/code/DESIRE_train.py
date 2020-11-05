@@ -77,12 +77,11 @@ def train(cfg):
       hx,y_path,loss_cvae = cvae_model.train(train_trajectory_x, train_trajectory_y)
       #print(hx.shape)
       #print(y_path.shape)
-      
+      total_loss += loss_cvae.cpu()
       if not torch.cuda.is_available():
         hx = hx.to(refine_device).detach()
         y_path = y_path.to(refine_device).detach()
-      total_loss += loss_cvae.detach().cpu()
-      loss_cvae.backward()
+        loss_cvae.backward()
       
       #t=input('a')
       torch.nn.utils.clip_grad_norm_(cvae_model.parameters(),1.0)
@@ -102,8 +101,12 @@ def train(cfg):
       if torch.cuda.is_available():
         torch.cuda.synchronize()
       start = time.time()
-      total_loss+= loss_refine.detach().cpu()
-      loss_refine.backward()
+      total_loss+= loss_refine.cpu()
+      if not torch.cuda.is_available():
+        loss_refine.backward()
+      else:
+        loss = loss_refine+loss_cvae
+        loss.backward()
       torch.nn.utils.clip_grad_norm_(refine_model.parameters(),1.0)
       refine_optimizer.step()
       if torch.cuda.is_available():
