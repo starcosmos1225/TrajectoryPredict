@@ -32,6 +32,7 @@ def main():
     train(cfg)
 
 def train(cfg):
+  torch.autograd.set_detect_anomaly(True)
   train_data_x, train_data_y, train_img = load_data(cfg.file_dir,max_size=250)
   cvae_device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
   if cfg.use_gpu:
