@@ -358,11 +358,11 @@ class RefineModel(nn.Module):
       for t in range(nums_agent):
         if t != j:
           # (k,2)
-          loc_others.append(path[:,t::nums_agent,:])
+          loc_others.append(path[:,t::nums_agent,:].detach())
           loc_other_index.append(t)
           count += 1
       #list(k,batch_size,2)->(n-1,k,batch_size,2)
-      loc_others = torch.stack(loc_others)
+      loc_others = torch.stack(loc_others).detach()
       u = int(H/2)-loc_agent[:,:,1].reshape(self.K*self.batch_size).long()
       v = int(W/2)-loc_agent[:,:,0].reshape(self.K*self.batch_size).long()
       #print(u.shape)
@@ -522,8 +522,8 @@ class RefineModel(nn.Module):
     # if torch.cuda.is_available():
     #   torch.cuda.synchronize()
     # start = time.time()
-    new_predict_path = y_path+delta_y
-    loss_ce = self.compute_cross_entropy(y_path,new_predict_path,trajectory_data_y)
+    new_predict_path = y_path.detach()+delta_y
+    loss_ce = self.compute_cross_entropy(y_path.detach(),new_predict_path,trajectory_data_y)
     loss_regression = self.compute_regression(new_predict_path,trajectory_data_y.permute(2,0,1))
     loss = loss_ce+loss_regression
     # if torch.cuda.is_available():
