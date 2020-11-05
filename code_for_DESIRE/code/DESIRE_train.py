@@ -76,6 +76,7 @@ def train(cfg):
       #hx: (batch_size*n,48)
       #y_path: (K,40,batch_size*n,2)
       hx,y_path,loss_cvae = cvae_model.train(train_trajectory_x, train_trajectory_y)
+      print("cvae loss:{}".format(loss_cvae.cpu().item()))
       #print(hx.shape)
       #print(y_path.shape)
       total_loss += loss_cvae.cpu()
@@ -96,6 +97,7 @@ def train(cfg):
       start = time.time()
       #y_test = torch.randn((10,40,50,2))
       #hx_test = torch.randn((hx.shape))
+      
       loss_refine = refine_model.train(hx.detach(),current_location, y_path.detach(),train_img_i,train_data_y[index:index+cfg.batch_size])
       if torch.cuda.is_available():
         torch.cuda.synchronize()
@@ -104,6 +106,7 @@ def train(cfg):
       if torch.cuda.is_available():
         torch.cuda.synchronize()
       start = time.time()
+      print("refine loss:{}".format(loss_refine.cpu().item()))
       total_loss+= loss_refine.cpu()
       #if not torch.cuda.is_available():
         #loss_refine.backward()
