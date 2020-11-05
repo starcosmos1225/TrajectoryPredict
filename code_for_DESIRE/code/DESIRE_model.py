@@ -489,12 +489,15 @@ class RefineModel(nn.Module):
     #loss = torch.zeros(1).to(self.device)
     #for i in range(self.K):
       #dist (40, n)
-    old_d = torch.max(torch.abs(oldY-Y_resize),dim=3).values
+    #old_d = torch.max(torch.abs(oldY-Y_resize),dim=3).values
     new_d = torch.max(torch.abs(newY-Y_resize),dim=3).values
     # P, Q (40, n)
-    P = func.softmax(old_d,dim=1)   
+    #P = func.softmax(old_d,dim=1)   
     Q = func.softmax(new_d,dim=1)
-    Hpq = torch.sum(-P*torch.log(Q))
+    # print(Y_resize.shape)
+    # print(Q.shape)
+    # t=input()
+    Hpq = torch.mean(-1.0/self.K*torch.log(Q))
     return Hpq
 
   def compute_regression(self,Y_i,Y):
@@ -503,7 +506,7 @@ class RefineModel(nn.Module):
     Y  :ground truth: (40,batch_size*n,2)
     '''
     Y_ = Y.unsqueeze(dim=0).repeat((self.K,1,1,1)).to(self.device)
-    return (Y_i-Y_).norm()/self.K/Y.shape[2]
+    return (Y_i-Y_).norm()/self.K/Y.shape[1]
 
   def train(self, hx,current_location,y_path,feature_image,trajectory_data_y):
     '''
