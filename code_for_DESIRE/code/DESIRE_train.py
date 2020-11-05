@@ -78,9 +78,9 @@ def train(cfg):
       #print(hx.shape)
       #print(y_path.shape)
       
-
-      hx = hx.to(refine_device).detach()
-      y_path = y_path.to(refine_device).detach()
+      if not torch.cuda.is_available():
+        hx = hx.to(refine_device).detach()
+        y_path = y_path.to(refine_device).detach()
       total_loss += loss_cvae.detach().cpu()
       loss_cvae.backward()
       
