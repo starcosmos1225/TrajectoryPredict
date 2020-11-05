@@ -40,8 +40,6 @@ class CVAEModel(nn.Module):
       H_miu: (batch_size*n, 48)
       H_delta: (batch_size*n, 48)
     '''
-    #print(trajectory_data_x)
-    #t=input()
     sequence_x = trajectory_data_x.shape[2]
     sequence_y = trajectory_data_y.shape[2]
     bn = trajectory_data_x.shape[0]
@@ -52,8 +50,6 @@ class CVAEModel(nn.Module):
     # Encoder 1 and 2
     # Hx :(batch_size*n,2,20)->(batch_size*n,16,20)
     Hx = self.rnn_encoder1(trajectory_data_x)
-    #print(Hx.shape)
-    #t=input()
     # (batch_size*n,16,20)->(20,batch_size*n,16)
     Hx = Hx.permute(2, 0, 1)
     # (20,batch_size*n,16)->(20,batch_size*n,48)
@@ -172,13 +168,13 @@ class CVAEModel(nn.Module):
     # if torch.cuda.is_available():
     #   torch.cuda.synchronize()
     # start = time.time()
-    #loss_distance = self.compute_dist_loss(predict_path,trajectory_data_y)
+    loss_distance = self.compute_dist_loss(predict_path,trajectory_data_y)
     loss_kld = self.compute_kld(miu,sigma)
     # if torch.cuda.is_available():
     #   torch.cuda.synchronize()
     # end = time.time()
     # print("the cvae loss compute time:{}".format(end-start))
-    loss = loss_kld#loss_distance+loss_kld
+    loss = loss_distance+loss_kld
     return hx,predict_path,loss
 
   def build(self):
