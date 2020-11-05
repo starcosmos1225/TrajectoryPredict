@@ -361,7 +361,7 @@ class RefineModel(nn.Module):
         #t=input()
         # dist:tensor(k,batch_size)
         dist = self.compute_dist(loc, loc_agent).detach()
-        dist = torch.randn((10,10))
+        dist = torch.randn((10,10),device = torch.device(self.device))
         #print(dist.shape)
         #t=input()
         #list of (index_shape) ,[dim0,dim1]
