@@ -79,10 +79,10 @@ def train(cfg):
       #print(hx.shape)
       #print(y_path.shape)
       total_loss += loss_cvae.cpu()
-      if not torch.cuda.is_available():
-        hx = hx.to(refine_device).detach()
-        y_path = y_path.to(refine_device).detach()
-        loss_cvae.backward()
+      #if not torch.cuda.is_available():
+        #hx = hx.to(refine_device).detach()
+        #y_path = y_path.to(refine_device).detach()
+      loss_cvae.backward()
       
       #t=input('a')
       torch.nn.utils.clip_grad_norm_(cvae_model.parameters(),1.0)
@@ -94,7 +94,9 @@ def train(cfg):
       if torch.cuda.is_available():
         torch.cuda.synchronize()
       start = time.time()
-      loss_refine = refine_model.train(hx,current_location, y_path,train_img_i,train_data_y[index:index+cfg.batch_size])
+      #y_test = torch.randn((10,40,50,2))
+      #hx_test = torch.randn((hx.shape))
+      loss_refine = refine_model.train(hx.detach(),current_location, y_path.detach(),train_img_i,train_data_y[index:index+cfg.batch_size])
       if torch.cuda.is_available():
         torch.cuda.synchronize()
       end = time.time()
@@ -103,11 +105,11 @@ def train(cfg):
         torch.cuda.synchronize()
       start = time.time()
       total_loss+= loss_refine.cpu()
-      if not torch.cuda.is_available():
-        loss_refine.backward()
-      else:
-        loss = loss_refine+loss_cvae
-        loss.backward()
+      #if not torch.cuda.is_available():
+        #loss_refine.backward()
+      #else:
+      #loss = loss_refine+loss_cvae
+      loss_refine.backward()
       torch.nn.utils.clip_grad_norm_(refine_model.parameters(),1.0)
       refine_optimizer.step()
       if torch.cuda.is_available():

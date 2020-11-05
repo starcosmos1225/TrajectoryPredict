@@ -17,8 +17,8 @@ class HalfExp(nn.Module):
         super(HalfExp, self).__init__()
  
     def forward(self, x):
-        x = 0.5 * torch.exp(x)
-        return x
+        x_ = 0.5 * torch.exp(x)
+        return x_
 
 class CVAEModel(nn.Module):
   def __init__(self,sample_number = 4,hz=10,device='cpu',batch_size=1,nums_iteration=1):
@@ -57,62 +57,71 @@ class CVAEModel(nn.Module):
     # (batch_size*n,16,20)->(20,batch_size*n,16)
     Hx = Hx.permute(2, 0, 1)
     # (20,batch_size*n,16)->(20,batch_size*n,48)
-    Hx,h_n_x = self.encoder1_gru(Hx)
+    Hx_1,h_n_x = self.encoder1_gru(Hx)
     # (batch_size*n,48)
-    new_Hx = Hx[-1]
+    new_Hx = Hx_1[-1]
     # Hy :(n,2,40)->(n,16,40)
     Hy = self.rnn_encoder2(trajectory_data_y)
     Hy = Hy.permute(2,0,1)
     # (40,batch_size*n,16)->(40,batch_size*n,48)
-    Hy,h_n_y = self.encoder2_gru(Hy)
+    Hy_1,h_n_y = self.encoder2_gru(Hy)
     # (batch_size*n,48)
-    new_Hy = Hy[-1]
+    new_Hy = Hy_1[-1]
     # Hxy :(batch_size*n,48)+(batch_size*n,48)->(batch_size*n,96)
     Hxy = torch.cat((new_Hx,new_Hy),1)
     # CVAE
     # Hc:(batch_size*n,96)->(batch_size*n,48)
     Hc = self.fc1(Hxy)
+    #Hc = torch.randn((bn,48))
     size_n = Hc.shape
     # H_miu:(batch_size*n,48)->(batch_size*n,48)
     H_miu = self.fc2(Hc)
     # H_delta:(batch_size*n,48)->(batch_size*n,48)
     H_delta = self.fc3(Hc)
     # sample k paths
-    Y_path = []#torch.zeros((self.K,trajectory_data_y.shape[2],
+    #Y_path = []#torch.zeros((self.K,trajectory_data_y.shape[2],
                 #          trajectory_data_y.shape[0], trajectory_data_y.shape[1]), device=torch.device(self.device))
     #Z K*(n,48)
     # Z = []
     # record each sample's score
-    for i in range(self.K):
-      #(batch_size*n,48)
-      #print("K:{}".format(i))
-      normalize = torch.randn((size_n), device=torch.device(self.device)).detach()
-      #z_i:(batch_size*n,48)
-      z_i = H_delta.mul(normalize)+H_miu
-      # Z.append(z_i)
-      #beta_z:(batch_size*n,48)
-      beta_z = self.fc4(z_i)
-      # mask
-      # xz_i:(batch_size*n,48)
-      xz_i = new_Hx.mul(beta_z)
-      # padding 0 for gru input:(batch_size*n,48)->(40,batch_size*n,48)
-      xz = []
-      for j in range(sequence_y):
-        if j==0:
-          xz.append(xz_i)
-        else:
-          xz.append(torch.zeros_like(xz_i))
-      xz = torch.stack(xz)
-      # xz = []torch.zeros((sequence_y,size_n[0],size_n[1]), device=torch.device(self.device))
-      # xz[0] = xz_i
-      # reconstruction
-      Hxz_i,h_x_xz = self.sample_reconstruction(xz)
-      #h_size = Hxz_i.shape[0]
-      # Y_i is the initial predict path:(40,batch_size*n,2)
-      Y_i = self.fc5(Hxz_i)
-      #record the predict path
-      Y_path.append(Y_i)
-    return new_Hx,torch.stack(Y_path), H_miu,H_delta
+    #for i in range(self.K):
+    #(k,batch_size*n,48)
+    #print("K:{}".format(i))
+    normalize = torch.randn((self.K,size_n[0],size_n[1]), device=torch.device(self.device)).detach()
+    mul_H = H_delta.unsqueeze(dim=0).repeat((self.K,1,1)).to(self.device)
+    mul_H_miu = H_miu.unsqueeze(dim=0).repeat((self.K,1,1)).to(self.device)
+    #mul_H = torch.randn((self.K,self.batch_size*n_agents,48))
+    #mul_H_miu = torch.randn(mul_H.shape)
+    #z_i:(K,batch_size*n,48)*(K,batch_size*n,48) + (K,batch_size*n,48) = (K,batch_size*n,48)
+    z_i = mul_H.mul(normalize)+mul_H_miu
+    # Z.append(z_i)
+    #beta_z:(K,batch_size*n,48)
+    beta_z = self.fc4(z_i)
+    # mask
+    mul_new_Hx = new_Hx.unsqueeze(dim=0).repeat((self.K,1,1)).to(self.device)
+    # xz_i:(K,batch_size*n,48)->(K*batch_size*n,48)
+    xz_i = mul_new_Hx.mul(beta_z).view(-1,48)
+    # padding 0 for gru input:(batch_size*n,48)->(40,batch_size*n,48)
+    xz = []
+    for j in range(sequence_y):
+      if j==0:
+        xz.append(xz_i)
+      else:
+        xz.append(torch.zeros_like(xz_i))
+    # xz:(40,K*batch_size*n,48)
+    xz = torch.stack(xz)
+    # xz = []torch.zeros((sequence_y,size_n[0],size_n[1]), device=torch.device(self.device))
+    # xz[0] = xz_i
+    # reconstruction
+    Hxz_i,h_x_xz = self.sample_reconstruction(xz)
+    #h_size = Hxz_i.shape[0]
+    # Y_i is the initial predict path:(40,K*batch_size*n,2)->(K,40, batch_size*n, 2)
+    Y_i = self.fc5(Hxz_i).view(40,self.K,-1,2).permute(1,0,2,3)
+    #print(Y_i.shape)
+    #t=input()
+    #record the predict path
+    #Y_path.append(Y_i)
+    return new_Hx,Y_i, H_miu,H_delta
 
 
   def compute_dist_loss(self, Y_i, Y):
@@ -120,13 +129,13 @@ class CVAEModel(nn.Module):
     Y_i:predict path:(K,40,batch_size*n,2)
     Y  :ground truth: (batch_size*n,2,40)
     '''
-    loss_sum = torch.zeros(1).to(self.device)
+    #loss_sum = torch.zeros(1).to(self.device)
     # (batch_size*n,2,40)->(40,batch_size*n,2)
-    Y_gt= Y.permute(2,0,1)
-    for i in range(self.K):
+    Y_gt= Y.permute(2,0,1).unsqueeze(dim=0).repeat((self.K,1,1,1)).to(self.device)
+    #for i in range(self.K):
       #print((Y_i[i]-Y_gt).norm().shape)
       #t=input()
-      loss_sum += (Y_i[i]-Y_gt).norm()
+    loss_sum = (Y_i-Y_gt).norm()
     return loss_sum/self.K/Y.shape[0]
 
   def compute_kld(self,miu,sigma):
@@ -163,13 +172,13 @@ class CVAEModel(nn.Module):
     # if torch.cuda.is_available():
     #   torch.cuda.synchronize()
     # start = time.time()
-    loss_distance = self.compute_dist_loss(predict_path,trajectory_data_y)
+    #loss_distance = self.compute_dist_loss(predict_path,trajectory_data_y)
     loss_kld = self.compute_kld(miu,sigma)
     # if torch.cuda.is_available():
     #   torch.cuda.synchronize()
     # end = time.time()
     # print("the cvae loss compute time:{}".format(end-start))
-    loss = loss_distance+loss_kld
+    loss = loss_kld#loss_distance+loss_kld
     return hx,predict_path,loss
 
   def build(self):
@@ -236,10 +245,7 @@ class RefineModel(nn.Module):
     # (batch_size*n,48)
     for j in range(self.iteration):
       for it in range(sequence_y):
-        lhalf_i = None
-        sps = None
-        # for batch in range(self.batch_size):
-        #   if batch==0:
+    #(40,batch_size*n,2)->(40,batch_size*n,16)
         #     #(k,n,48) (k,n,36*48)
         #     lhalf_i,sps = self.scf(y_path[:,:,batch:batch+n_agents,:],Y_fv[:,:,batch:batch+n_agents,:],
         #                                                       feature_map[batch],hx_[batch:batch+n_agents],n_agents,it)
@@ -266,7 +272,7 @@ class RefineModel(nn.Module):
           scf_gru_hidden[it] = hx_
       #(k*batch_size*n,48)->(k*batch_size*n,80)->(K,batch_size*n,2,40)->(K,40,batch_size*n,2)
       deltaY = self.fc_dy(hx_).view(self.K,bn,2,-1).permute(0,3, 1, 2).contiguous()
-      y_path = (y_path+deltaY).detach()
+      #y_path = (y_path+deltaY).detach()
     #40 list of (k*batch_size*n,48)->(40,k*batch_size*n,48)
     scf_gru_hidden = torch.stack(scf_gru_hidden)
     
@@ -389,7 +395,7 @@ class RefineModel(nn.Module):
         #t=input()
         # dist:tensor(k,batch_size)
         dist = self.compute_dist(loc, loc_agent).detach()
-        dist = torch.randn((10,10),device = torch.device(self.device))
+        dist = torch.randn((self.K,self.batch_size),device = torch.device(self.device))
         #print(dist.shape)
         #t=input()
         #list of (index_shape) ,[dim0,dim1]
@@ -400,6 +406,11 @@ class RefineModel(nn.Module):
         #   torch.cuda.synchronize()
         # start=time.time()
         if dist_index[0].shape[0]!=0:
+          # print(loc_agent.shape)
+          # print(loc.shape)
+          # print(dist_index[0])
+          # print(dist_index[1])
+          # t=input()
           theta = self.compute_theta(loc_agent[dist_index[0],dist_index[1],:], loc[dist_index[0],dist_index[1],:]).detach()
           # if torch.cuda.is_available():
           #   torch.cuda.synchronize()
@@ -514,6 +525,7 @@ class RefineModel(nn.Module):
     # if torch.cuda.is_available():
     #   torch.cuda.synchronize()
     # start = time.time()
+    init_y = y_path.detach()
     delta_y,scores = self.forward(hx,current_location,y_path,feature_image)
     # if torch.cuda.is_available():
     #   torch.cuda.synchronize()
@@ -523,7 +535,7 @@ class RefineModel(nn.Module):
     #   torch.cuda.synchronize()
     # start = time.time()
     new_predict_path = y_path.detach()+delta_y
-    loss_ce = self.compute_cross_entropy(y_path.detach(),new_predict_path,trajectory_data_y)
+    loss_ce = self.compute_cross_entropy(init_y,new_predict_path,trajectory_data_y)
     loss_regression = self.compute_regression(new_predict_path,trajectory_data_y.permute(2,0,1))
     loss = loss_ce+loss_regression
     # if torch.cuda.is_available():
