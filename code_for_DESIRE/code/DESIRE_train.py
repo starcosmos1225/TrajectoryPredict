@@ -25,6 +25,7 @@ def main():
     parser.add_argument('--frequent', type=int, default=10,
                         help='the frequent of frame')
     parser.add_argument('--save_dir', default='model/saved/')
+    parser.add_argument('--save_filename', default='model/saved/loss_record.txt')
     parser.add_argument('--file_dir', default='/home/hxy/Documents/TrajectoryPredict/code_for_DESIRE/data/train/')
     parser.add_argument('--batch_size',type=int,default=2)
     parser.add_argument('--use_gpu',type=bool,default=False)
@@ -51,15 +52,17 @@ def train(cfg):
   cvae_optimizer = torch.optim.Adam(cvae_model.parameters(),lr=cfg.learning_rate)
   refine_optimizer = torch.optim.Adam(refine_model.parameters(),lr=cfg.learning_rate)
   #data_size = train_data_x.shape[0]
+  filename = cfg.save_filename
+  fr = open(filename,"w")
   for epoch_i in range(cfg.epoch):
-    print("the epoch is :{}".format(epoch_i))
+    print("{}:".format(epoch_i),end=" ")
     if epoch_i==0:
       cvae_model.zero_grad()
       refine_model.zero_grad()
     #np.random.shuffle(order)
     total_loss = torch.zeros(1)
     for index in range(0,data_size,cfg.batch_size):
-      print("train index is :{}\r".format(index),end="")
+      #print("train index is :{}\r".format(index),end="")
       if torch.cuda.is_available():
         torch.cuda.synchronize()
       start = time.time()
@@ -76,7 +79,7 @@ def train(cfg):
       #hx: (batch_size*n,48)
       #y_path: (K,40,batch_size*n,2)
       hx,y_path,loss_cvae = cvae_model.train(train_trajectory_x, train_trajectory_y)
-      print("cvae loss:{}".format(loss_cvae.cpu().item()))
+      #print("cvae loss:{}".format(loss_cvae.cpu().item()))
       #print(hx.shape)
       #print(y_path.shape)
       total_loss += loss_cvae.cpu()
@@ -91,7 +94,7 @@ def train(cfg):
       if torch.cuda.is_available():
         torch.cuda.synchronize()
       end = time.time()
-      print("cvae time:{}".format(end-start))
+      #print("cvae time:{}".format(end-start))
       if torch.cuda.is_available():
         torch.cuda.synchronize()
       start = time.time()
@@ -99,14 +102,15 @@ def train(cfg):
       #hx_test = torch.randn((hx.shape))
       
       loss_refine = refine_model.train(hx.detach(),current_location, y_path.detach(),train_img_i,train_data_y[index:index+cfg.batch_size])
+      #print("refine loss:{}".format(loss_refine.cpu().item()))
       if torch.cuda.is_available():
         torch.cuda.synchronize()
       end = time.time()
-      print("refine train time:{}".format(end-start))
+      #print("refine train time:{}".format(end-start))
       if torch.cuda.is_available():
         torch.cuda.synchronize()
       start = time.time()
-      print("refine loss:{}".format(loss_refine.cpu().item()))
+      #print("refine loss:{}".format(loss_refine.cpu().item()))
       total_loss+= loss_refine.cpu()
       #if not torch.cuda.is_available():
         #loss_refine.backward()
@@ -118,7 +122,7 @@ def train(cfg):
       if torch.cuda.is_available():
         torch.cuda.synchronize()
       end = time.time()
-      print("the refine backward time:{}".format(end-start))
+      #print("the refine backward time:{}".format(end-start))
       # if torch.cuda.is_available():
       #   torch.cuda.synchronize()
       # start = time.time()
@@ -137,7 +141,9 @@ def train(cfg):
       torch.save(refine_model,refine_filename)
     
     print("the total loss is :{}".format(total_loss[0]))
+    fr.write("{}\n".format(total_loss[0]))
     gc.collect()
+  fr.close()
 
 
 if __name__=='__main__':
