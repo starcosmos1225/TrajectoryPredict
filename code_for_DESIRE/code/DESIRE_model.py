@@ -10,8 +10,8 @@ import threading
 #from SCF_GRU import SCF_GRU,GRU_TEST
 import time
 import math
+test1 = 0.0
 #@cuda.jit
-
 class HalfExp(nn.Module):
     def __init__(self):
         super(HalfExp, self).__init__()
@@ -30,6 +30,7 @@ class CVAEModel(nn.Module):
      
 
   def forward(self, trajectory_data_x,trajectory_data_y):
+    
     '''
     input:
     trajectory_data_x: a tensor with shape (batch_size*n,2,20) 
@@ -40,6 +41,7 @@ class CVAEModel(nn.Module):
       H_miu: (batch_size*n, 48)
       H_delta: (batch_size*n, 48)
     '''
+    global test1
     sequence_x = trajectory_data_x.shape[2]
     sequence_y = trajectory_data_y.shape[2]
     bn = trajectory_data_x.shape[0]
@@ -50,10 +52,12 @@ class CVAEModel(nn.Module):
     # Encoder 1 and 2
     # Hx :(batch_size*n,2,20)->(batch_size*n,16,20)
     Hx = self.rnn_encoder1(trajectory_data_x)
+    test1 += Hx.sum().item()
     # (batch_size*n,16,20)->(20,batch_size*n,16)
     Hx = Hx.permute(2, 0, 1)
     # (20,batch_size*n,16)->(20,batch_size*n,48)
     Hx_1,h_n_x = self.encoder1_gru(Hx)
+    
     # (batch_size*n,48)
     new_Hx = Hx_1[-1]
     # Hy :(n,2,40)->(n,16,40)
@@ -68,6 +72,7 @@ class CVAEModel(nn.Module):
     # CVAE
     # Hc:(batch_size*n,96)->(batch_size*n,48)
     Hc = self.fc1(Hxy)
+    
     #Hc = torch.randn((bn,48))
     size_n = Hc.shape
     # H_miu:(batch_size*n,48)->(batch_size*n,48)
@@ -113,7 +118,7 @@ class CVAEModel(nn.Module):
 
     loss_sum = (Y_i-Y_gt).norm(dim=2).sum()
     
-    return loss_sum/self.K/self.batch_size
+    return loss_sum/self.K/10
 
   def compute_kld(self,miu,sigma):
     '''
@@ -122,7 +127,7 @@ class CVAEModel(nn.Module):
     return :the loss of KLD:-0.5*(1+log(sigma*sigma)-sigma*sigma-miu*miu)
     '''
     sigma2 = torch.square(sigma)
-    return (-0.5*(1+torch.log(sigma2+1e-10)-sigma2-torch.square(miu))).sum()/self.batch_size
+    return (-0.5*(1+torch.log(sigma2+1e-10)-sigma2-torch.square(miu))).sum()/10
 
   def train(self, trajectory_data_x,trajectory_data_y):
     '''
@@ -370,7 +375,7 @@ class RefineModel(nn.Module):
     new_d = torch.max(torch.abs(newY-Y_resize),dim=3).values
   
     Q = func.softmax(new_d,dim=1)
-    Hpq = (-1.0/40.0*torch.log(Q)).sum()/self.K/self.batch_size
+    Hpq = (-1.0/40.0*torch.log(Q)).sum()/self.K/10
     return Hpq
 
   def compute_regression(self,Y_i,Y):
@@ -380,7 +385,7 @@ class RefineModel(nn.Module):
     '''
     Y_ = Y.unsqueeze(dim=0).repeat((self.K,1,1,1)).to(self.device)
     loss = (Y_i-Y_).norm(dim=3).sum()
-    return loss/self.K/self.batch_size
+    return loss/self.K/10
 
   def train(self, hx,current_location,y_path,feature_image,trajectory_data_y):
     '''
