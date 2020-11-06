@@ -122,7 +122,7 @@ class CVAEModel(nn.Module):
     return :the loss of KLD:-0.5*(1+log(sigma*sigma)-sigma*sigma-miu*miu)
     '''
     sigma2 = torch.square(sigma)
-    return torch.mean(-0.5*(1+torch.log(sigma2+1e-10)-sigma2-torch.square(miu)))
+    return (-0.5*(1+torch.log(sigma2+1e-10)-sigma2-torch.square(miu))).sum()/miu.shape[0]
 
   def train(self, trajectory_data_x,trajectory_data_y):
     '''
@@ -343,8 +343,8 @@ class RefineModel(nn.Module):
 
   def compute_vel(self,path,current_location):
     '''
-    path:tensor(k,40,batch_size*n,2)
-    current_location:the current location for agents.Tensor with size(batch_size*n,2)
+    path:tensor(k, 40, batch_size*n, 2)
+    current_location:the current location for agents.Tensor with size(batch_size*n, 2)
     '''
     sequence = path.shape[1]
     vel = torch.zeros(path.shape).to(self.device).detach()
@@ -360,8 +360,8 @@ class RefineModel(nn.Module):
 
   def compute_cross_entropy(self,newY,Y):
     '''
-    oldY:(K,40,batch_size*n,2)
-    newY:(K,40,batch_size*n,2)
+    oldY:(K, 40, batch_size*n, 2)
+    newY:(K, 40, batch_size*n, 2)
     Y:(batch_size*n,2,40)
     '''
     #(n,2,40)->(40,n,2)->(K,40,n,2)
@@ -370,8 +370,7 @@ class RefineModel(nn.Module):
     new_d = torch.max(torch.abs(newY-Y_resize),dim=3).values
   
     Q = func.softmax(new_d,dim=1)
-
-    Hpq = torch.mean(-1.0/self.K*torch.log(Q))
+    Hpq = (-1.0/40.0*torch.log(Q)).sum()/self.K/Q.shape[2]
     return Hpq
 
   def compute_regression(self,Y_i,Y):
