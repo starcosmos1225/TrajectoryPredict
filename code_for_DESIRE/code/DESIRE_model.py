@@ -113,7 +113,7 @@ class CVAEModel(nn.Module):
 
     loss_sum = (Y_i-Y_gt).norm(dim=2).sum()
     
-    return loss_sum/self.K/Y.shape[0]
+    return loss_sum/self.K/10
 
   def compute_kld(self,miu,sigma):
     '''
@@ -122,7 +122,7 @@ class CVAEModel(nn.Module):
     return :the loss of KLD:-0.5*(1+log(sigma*sigma)-sigma*sigma-miu*miu)
     '''
     sigma2 = torch.square(sigma)
-    return (-0.5*(1+torch.log(sigma2+1e-10)-sigma2-torch.square(miu))).sum()/miu.shape[0]
+    return (-0.5*(1+torch.log(sigma2+1e-10)-sigma2-torch.square(miu))).sum()/10
 
   def train(self, trajectory_data_x,trajectory_data_y):
     '''
@@ -370,7 +370,7 @@ class RefineModel(nn.Module):
     new_d = torch.max(torch.abs(newY-Y_resize),dim=3).values
   
     Q = func.softmax(new_d,dim=1)
-    Hpq = (-1.0/40.0*torch.log(Q)).sum()/self.K/Q.shape[2]
+    Hpq = (-1.0/40.0*torch.log(Q)).sum()/self.K/10
     return Hpq
 
   def compute_regression(self,Y_i,Y):
@@ -380,7 +380,7 @@ class RefineModel(nn.Module):
     '''
     Y_ = Y.unsqueeze(dim=0).repeat((self.K,1,1,1)).to(self.device)
     loss = (Y_i-Y_).norm(dim=3).sum()
-    return loss/self.K/Y.shape[1]
+    return loss/self.K/10
 
   def train(self, hx,current_location,y_path,feature_image,trajectory_data_y):
     '''
