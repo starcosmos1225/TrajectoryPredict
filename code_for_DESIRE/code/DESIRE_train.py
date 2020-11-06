@@ -143,6 +143,8 @@ def train(cfg):
     print("the total loss is :{}".format(total_loss[0]))
     fr.write("{}\n".format(total_loss[0]))
     gc.collect()
+  torch.save(cvae_model,cvae_filename)
+  torch.save(refine_model,refine_filename)
   fr.close()
 
 
