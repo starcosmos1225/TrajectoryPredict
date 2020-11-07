@@ -28,7 +28,7 @@ def main():
     parser.add_argument('--save_filename', default='model/saved/loss_record.txt')
     parser.add_argument('--file_dir', default='/home/hxy/Documents/TrajectoryPredict/code_for_DESIRE/data/train/')
     parser.add_argument('--batch_size',type=int,default=2)
-    parser.add_argument('--use_gpu',dest='flag', action='store_true')
+    parser.add_argument('--use_gpu',action='store_true')
     cfg = parser.parse_args()
     train(cfg)
 
@@ -36,13 +36,10 @@ def train(cfg):
   torch.autograd.set_detect_anomaly(True)
   train_data_x, train_data_y, train_img = load_data(cfg.file_dir,max_size=250)
   cvae_device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-  print(cfg.use_gpu)
-  if cfg.use_gpu==True:
+  if cfg.use_gpu:
     refine_device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
   else:
     refine_device = torch.device("cpu")
-  print("cvae device is {}".format(cvae_device))
-  print("refine device is {}".format(refine_device))
   cvae_model = CVAEModel(sample_number=cfg.nums_sample,device=cvae_device, batch_size=cfg.batch_size)
   refine_model = RefineModel(sample_number=cfg.nums_sample,hz=cfg.frequent,device=refine_device, batch_size=cfg.batch_size)
   cvae_model.to(cvae_device)
