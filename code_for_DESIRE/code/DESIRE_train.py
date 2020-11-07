@@ -28,7 +28,7 @@ def main():
     parser.add_argument('--save_filename', default='model/saved/loss_record.txt')
     parser.add_argument('--file_dir', default='/home/hxy/Documents/TrajectoryPredict/code_for_DESIRE/data/train/')
     parser.add_argument('--batch_size',type=int,default=2)
-    parser.add_argument('--use_gpu',type=bool,default=False)
+    parser.add_argument('--use_gpu',type=bool, default=False)
     cfg = parser.parse_args()
     train(cfg)
 
@@ -36,7 +36,7 @@ def train(cfg):
   torch.autograd.set_detect_anomaly(True)
   train_data_x, train_data_y, train_img = load_data(cfg.file_dir,max_size=250)
   cvae_device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-  if cfg.use_gpu:
+  if cfg.use_gpu==True:
     refine_device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
   else:
     refine_device = torch.device("cpu")
