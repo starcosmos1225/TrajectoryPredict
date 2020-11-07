@@ -326,8 +326,8 @@ class RefineModel(nn.Module):
           theta = self.compute_theta(loc_agent[dist_index[0],dist_index[1],:], loc[dist_index[0],dist_index[1],:]).detach()
           u = ((dist[dist_index[0],dist_index[1]]-self.radius_range[0])/self.radius_step).long()
           v = (theta/self.theta_step).long()
-          torch.clamp(u, min=0, max=self.social_pooling_size[0], out=u)
-          torch.clamp(v, min=0, max=self.social_pooling_size[1], out=v)
+          torch.clamp(u, min=0, max=self.social_pooling_size[0]-1, out=u)
+          torch.clamp(v, min=0, max=self.social_pooling_size[1]-1, out=v)
           #index: (index_shape)
           loc_index = u*self.social_pooling_size[1]+v
           hidden_index = dist_index[1]*nums_agent + loc_other_index[i]

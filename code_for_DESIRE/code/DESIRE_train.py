@@ -41,6 +41,7 @@ def train(cfg):
   else:
     refine_device = torch.device("cpu")
   print("cvae device is {}".format(cvae_device))
+  print("refine device is {}".format(refine_device))
   cvae_model = CVAEModel(sample_number=cfg.nums_sample,device=cvae_device, batch_size=cfg.batch_size)
   refine_model = RefineModel(sample_number=cfg.nums_sample,hz=cfg.frequent,device=refine_device, batch_size=cfg.batch_size)
   cvae_model.to(cvae_device)
@@ -88,13 +89,12 @@ def train(cfg):
       #print(y_path.shape)
       total_loss += loss_cvae.cpu()
       #if not torch.cuda.is_available():
-        #hx = hx.to(refine_device).detach()
-        #y_path = y_path.to(refine_device).detach()
       loss_cvae.backward()
-      
       #t=input('a')
       torch.nn.utils.clip_grad_norm_(cvae_model.parameters(),1.0)
       cvae_optimizer.step()
+      hx = hx.to(refine_device).detach()
+      y_path = y_path.to(refine_device).detach()
       if torch.cuda.is_available():
         torch.cuda.synchronize()
       end = time.time()
