@@ -41,7 +41,7 @@ class CVAEModel(nn.Module):
       H_miu: (batch_size*n, 48)
       H_delta: (batch_size*n, 48)
     '''
-    global test1
+    #global test1
     sequence_x = trajectory_data_x.shape[2]
     sequence_y = trajectory_data_y.shape[2]
     bn = trajectory_data_x.shape[0]
@@ -51,8 +51,9 @@ class CVAEModel(nn.Module):
     #feature_map = self.cnn_map(image_data)
     # Encoder 1 and 2
     # Hx :(batch_size*n,2,20)->(batch_size*n,16,20)
+    
     Hx = self.rnn_encoder1(trajectory_data_x)
-    test1 += Hx.sum().item()
+    
     # (batch_size*n,16,20)->(20,batch_size*n,16)
     Hx = Hx.permute(2, 0, 1)
     # (20,batch_size*n,16)->(20,batch_size*n,48)
@@ -79,6 +80,7 @@ class CVAEModel(nn.Module):
     H_miu = self.fc2(Hc)
     # H_delta:(batch_size*n,48)->(batch_size*n,48)
     H_delta = self.fc3(Hc)
+    
     # sample k paths
     normalize = torch.randn((self.K,size_n[0],size_n[1]), device=torch.device(self.device)).detach()
     mul_H = H_delta.unsqueeze(dim=0).repeat((self.K,1,1)).to(self.device)
@@ -104,6 +106,7 @@ class CVAEModel(nn.Module):
     Hxz_i,h_x_xz = self.sample_reconstruction(xz)
     # Y_i is the initial predict path:(40,K*batch_size*n,2)->(K,40, batch_size*n, 2)
     Y_i = self.fc5(Hxz_i).view(40,self.K,-1,2).permute(1,0,2,3)
+    
     return new_Hx,Y_i, H_miu,H_delta
 
 
@@ -116,7 +119,7 @@ class CVAEModel(nn.Module):
     # (batch_size*n,2,40)->(40,batch_size*n,2)
     Y_gt= Y.permute(2,0,1).unsqueeze(dim=0).repeat((self.K,1,1,1)).to(self.device)
 
-    loss_sum = (Y_i-Y_gt).norm(dim=2).sum()
+    loss_sum = (Y_i-Y_gt).norm(dim=3).sum()
     
     return loss_sum/self.K/10
 
@@ -135,6 +138,7 @@ class CVAEModel(nn.Module):
     trajectory_data_x: a tensor with shape (batch_size,10,2,20)
     trajectory_data_y: a tensor with shape (batch_size,10,2,40)
     '''
+
 
     trajectory_data_x = trajectory_data_x.view(-1,trajectory_data_x.shape[2],trajectory_data_x.shape[3])
     trajectory_data_y = trajectory_data_y.view(-1,trajectory_data_y.shape[2],trajectory_data_y.shape[3])
@@ -190,6 +194,7 @@ class RefineModel(nn.Module):
       deltaY:the K delta path with cell(K,40, batch_size*n, 2)
       scores:the K paths' scores with cell(K,batch_size*n, 1)
     '''
+    global test1
     bn = hx.shape[0]
     hx_ = hx.repeat((self.K,1)).to(self.device)
     
@@ -321,14 +326,10 @@ class RefineModel(nn.Module):
           theta = self.compute_theta(loc_agent[dist_index[0],dist_index[1],:], loc[dist_index[0],dist_index[1],:]).detach()
           u = ((dist[dist_index[0],dist_index[1]]-self.radius_range[0])/self.radius_step).long()
           v = (theta/self.theta_step).long()
+          torch.clamp(u, min=0, max=self.social_pooling_size[0], out=u)
+          torch.clamp(v, min=0, max=self.social_pooling_size[1], out=v)
           #index: (index_shape)
           loc_index = u*self.social_pooling_size[1]+v
-          # (index_shape,48)
-          # print(u)
-          # print(v)
-          # print(theta)
-          # print(self.theta_step)
-          # print("end show")
           hidden_index = dist_index[1]*nums_agent + loc_other_index[i]
           sp[dist_index[0],dist_index[1],loc_index] = sp[dist_index[0],dist_index[1],loc_index]+hidden[hidden_index]
           sp_c[dist_index[0],dist_index[1],loc_index] += 1
@@ -398,7 +399,6 @@ class RefineModel(nn.Module):
     '''
     # delta_y:(K,40, batch_size*n, 2)
     # scores: (K,batch_size*n, 1)
-    
     trajectory_data_y = trajectory_data_y.view(-1,trajectory_data_y.shape[2],trajectory_data_y.shape[3])
     
     init_y = y_path.detach()
@@ -406,8 +406,8 @@ class RefineModel(nn.Module):
     
     new_predict_path = init_y+delta_y
     loss_ce = self.compute_cross_entropy(new_predict_path,trajectory_data_y)
+    
     loss_regression = self.compute_regression(new_predict_path,trajectory_data_y.permute(2,0,1))
-
     loss = loss_ce+loss_regression
 
     return loss

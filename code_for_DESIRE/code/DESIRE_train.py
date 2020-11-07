@@ -45,6 +45,10 @@ def train(cfg):
   refine_model = RefineModel(sample_number=cfg.nums_sample,hz=cfg.frequent,device=refine_device, batch_size=cfg.batch_size)
   cvae_model.to(cvae_device)
   refine_model.to(refine_device)
+  # for p in cvae_model.parameters():
+  #   p.data.fill_(0.001)
+  # for p in refine_model.parameters():
+  #   p.data.fill_(0.001)
   data_size = train_data_x.shape[0]
   #print(train_data_x.shape)
   #print(data_size)
@@ -79,7 +83,7 @@ def train(cfg):
       #hx: (batch_size*n,48)
       #y_path: (K,40,batch_size*n,2)
       hx,y_path,loss_cvae = cvae_model.train(train_trajectory_x, train_trajectory_y)
-      print("cvae loss:{}".format(loss_cvae.cpu().item()))
+      #print("cvae loss:{}".format(loss_cvae.cpu().item()))
       #print(hx.shape)
       #print(y_path.shape)
       total_loss += loss_cvae.cpu()
@@ -102,7 +106,7 @@ def train(cfg):
       #hx_test = torch.randn((hx.shape))
       
       loss_refine = refine_model.train(hx.detach(),current_location, y_path.detach(),train_img_i,train_data_y[index:index+cfg.batch_size])
-      print("refine loss:{}".format(loss_refine.cpu().item()))
+      #print("refine loss:{}".format(loss_refine.cpu().item()))
       if torch.cuda.is_available():
         torch.cuda.synchronize()
       end = time.time()
