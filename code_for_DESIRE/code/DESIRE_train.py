@@ -26,6 +26,8 @@ def main():
                         help='the frequent of frame')
     parser.add_argument('--save_dir', default='model/saved/')
     parser.add_argument('--save_filename', default='model/saved/loss_record.txt')
+    parser.add_argument('--load_cvae_dir',default='None')
+    parser.add_argument('--load_refine_dir',default='None')
     parser.add_argument('--file_dir', default='/home/hxy/Documents/TrajectoryPredict/code_for_DESIRE/data/train/')
     parser.add_argument('--batch_size',type=int,default=2)
     parser.add_argument('--use_gpu',action='store_true')
@@ -40,8 +42,16 @@ def train(cfg):
     refine_device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
   else:
     refine_device = torch.device("cpu")
-  cvae_model = CVAEModel(sample_number=cfg.nums_sample,device=cvae_device, batch_size=cfg.batch_size)
-  refine_model = RefineModel(sample_number=cfg.nums_sample,hz=cfg.frequent,device=refine_device, batch_size=cfg.batch_size)
+  if cfg.load_cvae_dir=='None':
+    cvae_model = CVAEModel(sample_number=cfg.nums_sample,device=cvae_device, batch_size=cfg.batch_size)
+  else:
+    print("load cvae mode from:{}".format(cfg.load_cvae_dir))
+    cvae_model = torch.load(cfg.load_cvae_dir)
+  if cfg.load_refine_dir =='None':
+    refine_model = RefineModel(sample_number=cfg.nums_sample,hz=cfg.frequent,device=refine_device, batch_size=cfg.batch_size)
+  else:
+    print("load refine mode from:{}".format(cfg.load_refine_dir))
+    refine_model = torch.load(cfg.load_refine_dir)
   cvae_model.to(cvae_device)
   refine_model.to(refine_device)
   # for p in cvae_model.parameters():
@@ -63,7 +73,7 @@ def train(cfg):
       cvae_model.zero_grad()
       refine_model.zero_grad()
     #np.random.shuffle(order)
-    total_loss = torch.zeros(1)
+    total_loss = 0.0
     for index in range(0,data_size,cfg.batch_size):
       #print("train index is :{}\r".format(index),end="")
       if torch.cuda.is_available():
@@ -85,7 +95,7 @@ def train(cfg):
       #print("cvae loss:{}".format(loss_cvae.cpu().item()))
       #print(hx.shape)
       #print(y_path.shape)
-      total_loss += loss_cvae.cpu()
+      total_loss += loss_cvae.cpu().item()
       #if not torch.cuda.is_available():
       loss_cvae.backward()
       #t=input('a')
@@ -113,7 +123,7 @@ def train(cfg):
         torch.cuda.synchronize()
       start = time.time()
       #print("refine loss:{}".format(loss_refine.cpu().item()))
-      total_loss+= loss_refine.cpu()
+      total_loss+= loss_refine.cpu().item()
       #if not torch.cuda.is_available():
         #loss_refine.backward()
       #else:
@@ -142,7 +152,7 @@ def train(cfg):
       torch.save(cvae_model,cvae_filename)
       torch.save(refine_model,refine_filename)
     
-    print("the total loss is :{}".format(total_loss[0]))
+    print("the total loss is :{}".format(total_loss))
     fr.write("{}\n".format(total_loss[0]))
     # gc.collect()
   torch.save(cvae_model,cvae_filename)
