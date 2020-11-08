@@ -35,12 +35,14 @@ def main():
     train(cfg)
 
 def train(cfg):
-  torch.autograd.set_detect_anomaly(True)
+  #torch.autograd.set_detect_anomaly(True)
   train_data_x, train_data_y, train_img = load_data(cfg.file_dir,max_size=250)
   if cfg.use_gpu:
+    print("to gpu")
     cvae_device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     refine_device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
   else:
+    print("to cpu")
     cvae_device = torch.device("cpu")
     refine_device = torch.device("cpu")
   if cfg.load_cvae_dir=='None':
@@ -54,7 +56,9 @@ def train(cfg):
     print("load refine mode from:{}".format(cfg.load_refine_dir))
     refine_model = torch.load(cfg.load_refine_dir)
   cvae_model.to(cvae_device)
+  cvae_model.init(sample_number=cfg.nums_sample,device=cvae_device, batch_size=cfg.batch_size)
   refine_model.to(refine_device)
+  refine_model.init(sample_number=cfg.nums_sample,hz=cfg.frequent,device=refine_device, batch_size=cfg.batch_size)
   # for p in cvae_model.parameters():
   #   p.data.fill_(0.001)
   # for p in refine_model.parameters():

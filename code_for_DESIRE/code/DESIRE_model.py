@@ -28,6 +28,10 @@ class CVAEModel(nn.Module):
     self.batch_size = batch_size
     self.build()               
      
+  def init(self,sample_number = 4,hz=10,device='cpu',batch_size=1,nums_iteration=1):
+    self.K = sample_number
+    self.device = device
+    self.batch_size = batch_size
 
   def forward(self, trajectory_data_x,trajectory_data_y):
     
@@ -181,7 +185,17 @@ class RefineModel(nn.Module):
     self.radius_step = (self.radius_range[1]-self.radius_range[0])/self.social_pooling_size[0]
     self.theta_step = torch.tensor([2*math.pi],device=torch.device(self.device))/self.social_pooling_size[1]
     self.build()               
-     
+
+  def init(self,sample_number = 4,hz=10,device='cpu',batch_size=1,nums_iteration=1):
+    self.K = sample_number
+    self.hz = hz
+    self.device = device
+    self.batch_size = batch_size
+    self.iteration = nums_iteration
+    self.social_pooling_size=torch.tensor([6,6],device=torch.device(self.device))
+    self.radius_range = torch.tensor([0.5,4.0],device=torch.device(self.device))
+    self.radius_step = (self.radius_range[1]-self.radius_range[0])/self.social_pooling_size[0]
+    self.theta_step = torch.tensor([2*math.pi],device=torch.device(self.device))/self.social_pooling_size[1]        
 
   def forward(self, hx,current_location,y_path,image_data):
     '''
