@@ -311,9 +311,9 @@ class RefineModel(nn.Module):
       # feature_agent:(k*batch_size,32)
       feature_agent = f_map[kb_list,:,u, v].view(self.K,self.batch_size,32)
       # sp: tensor(K,batch_size,6*6,48)
-      sp = torch.zeros((self.K,self.batch_size,self.social_pooling_size[0]*self.social_pooling_size[1],hidden.shape[1]), device=torch.device(self.device))
+      sp = torch.zeros((self.K,self.batch_size,int(self.social_pooling_size[0].item()*self.social_pooling_size[1].item()),hidden.shape[1]), device=torch.device(self.device))
       # sp_c: count the numbers in (K,batch_size,6*6)
-      sp_c = torch.zeros((self.K,self.batch_size,int(self.social_pooling_size[0]*self.social_pooling_size[1])), device=torch.device(self.device),dtype=torch.int32).detach()
+      sp_c = torch.zeros((self.K,self.batch_size,int(self.social_pooling_size[0].item()*self.social_pooling_size[1].item())), device=torch.device(self.device),dtype=torch.int32).detach()
       sp_one = torch.ones_like(sp_c)
       for i in range(loc_others.shape[0]):
         # loc:tensor(k,batch_size,2)
