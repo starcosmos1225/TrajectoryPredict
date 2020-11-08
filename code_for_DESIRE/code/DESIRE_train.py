@@ -37,10 +37,11 @@ def main():
 def train(cfg):
   torch.autograd.set_detect_anomaly(True)
   train_data_x, train_data_y, train_img = load_data(cfg.file_dir,max_size=250)
-  cvae_device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
   if cfg.use_gpu:
+    cvae_device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     refine_device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
   else:
+    cvae_device = torch.device("cpu")
     refine_device = torch.device("cpu")
   if cfg.load_cvae_dir=='None':
     cvae_model = CVAEModel(sample_number=cfg.nums_sample,device=cvae_device, batch_size=cfg.batch_size)
