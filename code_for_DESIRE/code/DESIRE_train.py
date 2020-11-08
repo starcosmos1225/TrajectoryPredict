@@ -153,7 +153,7 @@ def train(cfg):
       torch.save(refine_model,refine_filename)
     
     print("the total loss is :{}".format(total_loss))
-    fr.write("{}\n".format(total_loss[0]))
+    fr.write("{}\n".format(total_loss))
     # gc.collect()
   torch.save(cvae_model,cvae_filename)
   torch.save(refine_model,refine_filename)
