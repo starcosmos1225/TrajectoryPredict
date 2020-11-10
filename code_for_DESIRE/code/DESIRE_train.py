@@ -151,7 +151,7 @@ def train(cfg):
       #   torch.cuda.synchronize()
       # end = time.time()
       # print("the post time:{}".format(end-start))
-    if epoch_i %60==0:
+    if epoch_i %10==0:
       cvae_filename = cfg.save_dir+"cvae_{}.pth".format(epoch_i)
       refine_filename = cfg.save_dir+"refine_{}.pth".format(epoch_i)
       torch.save(cvae_model,cvae_filename)

@@ -321,7 +321,18 @@ class RefineModel(nn.Module):
       #list(k,batch_size,2)->(n-1,k,batch_size,2)
       loc_others = torch.stack(loc_others).detach()
       u = int(H/2)-loc_agent[:,:,1].reshape(self.K*self.batch_size).long()
-      v = int(W/2)-loc_agent[:,:,0].reshape(self.K*self.batch_size).long()
+      v = loc_agent[:,:,0].reshape(self.K*self.batch_size).long()
+      torch.clamp(u, min=0, max=H-1, out=u)
+      torch.clamp(v, min=0, max=W-1, out=v)
+      #print(u)
+      #print(v)
+      #t=input()
+      HH = torch.tensor(H,device=torch.device(self.device))
+      WW = torch.tensor(W,device=torch.device(self.device))
+      #index = torch.where((u>=0)&(u<HH)&(v>=0)&(v<WW))
+      ##kb_list = kb_list[index]
+      #u = u[index]
+      #v = v[index]
       # feature_agent:(k*batch_size,32)
       feature_agent = f_map[kb_list,:,u, v].view(self.K,self.batch_size,32)
       # sp: tensor(K,batch_size,6*6,48)
