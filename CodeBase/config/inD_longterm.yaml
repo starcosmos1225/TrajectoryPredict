@@ -1,0 +1,67 @@
+resize: 0.33
+batch_size: 8
+
+viz_epoch: 10
+learning_rate: 0.0001
+num_epochs: 300
+
+temperature: 1.8
+
+
+loss_scale: 1000  # factor to scale the loss
+
+kernlen: 31  # (image) size of Gaussian kernel used for ground-truth Gaussian heatmap
+nsig: 4  # sigma of Gaussian kernel used for ground-truth Gaussian heatmap
+
+unfreeze: 100  # Unfreeze semantic segmentation model weights after this # of epochs
+
+# TTST
+use_TTST: True
+rel_threshold: 0.002
+
+# CWS
+use_CWS: True
+CWS_params:
+  sigma_factor: 6
+  ratio: 2
+  rot: True
+dataset_name: 'ind'
+train_data_path: '../dataset/inD/train.pkl'
+train_image_path: '../dataset/inD/train'
+val_data_path: '../dataset/inD/test.pkl'
+val_image_path: '../dataset/inD/test'
+
+num_goals: 20  # K_e
+num_traj: 1  # K_a
+experiment_name: 'ind_longterm' 
+# list of selected goal and waypoints as timestep idx, e.g. 14 means the 14th future timestep is used as a waypoint,
+# last element is goal timestep
+waypoints:
+      - 14
+      - 29
+model:
+  name: 'ynet'
+  kwargs:
+    obs_len: 5
+    pred_len: 30  # in timesteps
+    segmentation_model_fp: 'segmentation_models/inD_segmentation.pth'
+    use_features_only: False # If True the segmentation model only uses the
+    semantic_classes: 6
+    encoder_channels: 
+      - 32
+      - 32
+      - 64
+      - 64
+      - 64
+    decoder_channels:
+      - 64
+      - 64
+      - 64
+      - 32
+      - 32
+# list of selected goal and waypoints as timestep idx, e.g. 14 means the 14th future timestep is used as a waypoint,
+# last element is goal timestep
+    waypoints:
+      - 14
+      - 29
+      
