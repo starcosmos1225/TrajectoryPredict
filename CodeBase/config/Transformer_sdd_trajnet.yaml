@@ -1,0 +1,73 @@
+resize: 0.25
+batch_size: 4
+
+viz_epoch: 10
+
+#Learning
+
+learning_rate: 0.0001
+factor: 1.0
+warmup: 10
+num_epochs: 300
+
+
+temperature: 1.8
+
+loss_scale: 1000  # factor to scale the loss
+
+kernlen: 31  # (image) size of Gaussian kernel used for ground-truth Gaussian heatmap
+nsig: 4  # sigma of Gaussian kernel used for ground-truth Gaussian heatmap
+
+unfreeze: 100  # Unfreeze semantic segmentation model weights after this # of epochs
+
+# TTST
+use_TTST: True
+rel_threshold: 0.002
+
+# CWS
+use_CWS: True
+CWS_params:
+  sigma_factor: 6
+  ratio: 2
+  rot: True
+  
+# DATASET
+dataset_name: 'sdd'
+train_data_path: '../dataset/SDD/train_trajnet.pkl'
+train_image_path: '../dataset/SDD/train'
+val_data_path: '../dataset/SDD/test_trajnet.pkl'
+val_image_path: '../dataset/SDD/test'
+
+num_goals: 20  # K_e
+num_traj: 1  # K_a
+experiment_name: 'sdd_trajnet' 
+# list of selected goal and waypoints as timestep idx, e.g. 14 means the 14th future timestep is used as a waypoint,
+# last element is goal timestep
+waypoints:
+      - 14
+      - 29
+
+emb_size: 512
+model:
+  name: 'Transformer'
+  kwargs:
+    obs_len: 8
+    pred_len: 12  # in timesteps
+    enc_inp_size: 2
+    dec_inp_size: 3
+    dec_out_size: 3
+    N: 6
+    d_model: 512
+    d_ff: 2048
+    h: 8
+    dropout: 0.1
+    mean: [0,0]
+    std: [0,0]
+
+
+#EVAL
+
+save_step: 10
+evaluate: True
+
+      
