@@ -4,7 +4,7 @@ import yaml
 from easydict import EasyDict
 import os
 import logging
-# from utils.train import train
+from utils.trainModel import trainModel
 from data import createDataLoader
 from optimizer import createOptimizer
 from loss import createLossFunction
@@ -13,6 +13,7 @@ import warnings
 from torch.serialization import SourceChangeWarning
 import json
 from model import model_dict
+
 warnings.filterwarnings("ignore", category=SourceChangeWarning)
 
 
@@ -23,14 +24,14 @@ logger = logging.getLogger(__name__)
 
 def main(params):
     trainDataLoader, valDataLoader = createDataLoader(params)
-
+    # obs, gt,  gtFutureMap, gtWaypointMap, semanticMap = infos
     model = model_dict[params.model.name](**params.model.kwargs)
     if params.model.pretrain !='' and os.path.exists(params.model.pretrain):
         model.load(params.model.pretrain)
     optimizer = createOptimizer(params,model)
     lossFunction = createLossFunction(params)
     
-    # trainTraj(params, model,optimizer, lossFunction)
+    trainModel(params, trainDataLoader, valDataLoader,model,optimizer, lossFunction,logger)
 
 
 

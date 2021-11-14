@@ -79,7 +79,7 @@ class SceneDataset(Dataset):
 		# 	type(gtWaypointMap),
 		# 	type(semanticMap)
 		# ))
-		return obs, gtFuture, gtFutureMap, gtWaypointMap, semanticMap
+		return obs, gtFuture,observedMap, gtFutureMap, gtWaypointMap, semanticMap
 
 	def getSamplerInfo(self):
 		c = 0
