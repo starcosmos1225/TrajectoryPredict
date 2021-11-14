@@ -31,6 +31,12 @@ train_image_path: '../dataset/inD/train'
 val_data_path: '../dataset/inD/test.pkl'
 val_image_path: '../dataset/inD/test'
 
+# TEST
+test_data_path: '../dataset/inD/test.pkl'
+test_image_path: '../dataset/inD/test'
+rounds: 3
+
+
 num_goals: 20  # K_e
 num_traj: 1  # K_a
 experiment_name: 'ind_longterm' 
