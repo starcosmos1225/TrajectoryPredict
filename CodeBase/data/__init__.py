@@ -9,5 +9,5 @@ dataDict = {
 
 
 def createDataLoader(params,type='train'):
-    return dataDict[params.dataset.type](params,type)
+    return dataDict[params.type](params,type)
 

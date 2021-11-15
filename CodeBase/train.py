@@ -17,14 +17,21 @@ from model import model_dict
 warnings.filterwarnings("ignore", category=SourceChangeWarning)
 
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s-%(funcName)s-%(lineno)s-%(levelname)s-%(message)s')
 logger = logging.getLogger(__name__)
 
 
 
 def main(params):
-    trainDataLoader, valDataLoader = createDataLoader(params)
-    # obs, gt,  gtFutureMap, gtWaypointMap, semanticMap = infos
+    trainDataLoader, valDataLoader = createDataLoader(params.dataset)
+    # for idx, infos in enumerate(trainDataLoader):
+    #     obs, gt,  otherInp = infos
+    #     logger.info("obs:{}".format(obs.shape))
+    #     logger.info("gt:{}".format(gt.shape))
+    #     logger.info("observemap:{}".format(otherInp[0].shape))
+    #     logger.info("gtFutre:{}".format(otherInp[1].shape))
+    #     logger.info("waypoint:{}".format(otherInp[2].shape))
+    #     logger.info("semantic:{}".format(otherInp[3].shape))
     model = model_dict[params.model.name](**params.model.kwargs)
     if params.model.pretrain !='' and os.path.exists(params.model.pretrain):
         model.load(params.model.pretrain)

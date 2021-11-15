@@ -5,6 +5,7 @@ device: 'cuda:0'
 model:
   name: 'ynet'
   pretrain: ''
+  save_name: 'sdd_short'
   kwargs:
     obs_len: 8
     pred_len: 12  # in timesteps
@@ -15,15 +16,8 @@ model:
     decoder_channels: [64,64,64,32,32]
 # list of selected goal and waypoints as timestep idx, e.g. 14 means the 14th future timestep is used as a waypoint,
 # last element is goal timestep
-    num_waypoints: 1
-  temperature: 1.0
-  # TTST
-  use_TTST: True
-  rel_threshold: 0.01
+    waypoints: [11]
 
-  # CWS
-  use_CWS: False
-  CWS_params: None
   # loss
   loss_function: 
     name: 'GoalTrajLoss'
@@ -42,22 +36,31 @@ dataset:
   val_image_path: '../dataset/SDD/test'
   test_data_path: '../dataset/SDD/test_trajnet.pkl'
   test_image_path: '../dataset/SDD/test'
+
+  # data info
   resize: 0.25
   batch_size: 4
   obs_len: 8
   pred_len: 12
+  num_workers: 4 
+  prefetch_factor: 2
+  # Ynet
   division_factor: 32 # use in Ynet the division factor must be 2^(len(encoder_channels))
   kernlen: 31  # (image) size of Gaussian kernel used for ground-truth Gaussian heatmap
   nsig: 4  # sigma of Gaussian kernel used for ground-truth Gaussian heatmap
-  waypoints:
-    - 11
+  waypoints: [11]
   # For semantic map
   segmentation_model_fp: segmentation_models/SDD_segmentation.pth
   semantic_classes: 6
   use_features_only: False  # If True the segmentation model only uses the
 
   #Sampler
-  sampler: 'interval' # custom or interval
+  sampler: 
+    name: 'interval' # custom or interval
+    trainkwargs:
+      num_interval: 25 # for one epoch, the max num_interval for sampling
+    valkwargs:
+      num_interval: 9999999 # for one epoch, the max num_interval for sampling
 
 optim:
   name: 'Adam'
@@ -65,13 +68,23 @@ optim:
     lr: 0.0001
   # learning_rate: 0.0001
   num_epochs: 300
-  
-  unfreeze: 150  # Unfreeze semantic segmentation model weights after this # of epochs
-  viz_epoch: 10
 
+# TEST
 
-# list of selected goal and waypoints as timestep idx, e.g. 14 means the 14th future timestep is used as a waypoint,
-# last element is goal timestep
+test:
+  # TTST
+  use_TTST: False
+  rel_threshold: 0.01
+  # CWS
+  use_CWS: False
+  CWS_params: None
+
+  eval_step: 1
+  temperature: 1.0
+
+unfreeze: 150  # Unfreeze semantic segmentation model weights after this # of epochs
+viz_epoch: 10
+
 
 
 

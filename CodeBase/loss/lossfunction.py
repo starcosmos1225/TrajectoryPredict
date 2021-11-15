@@ -6,9 +6,11 @@ class GoalTrajLoss:
         self.lossFunc = BCEWithLogitsLoss()
         self.lossScale = loss_scale
     
-    def __call__(self,pred,gt,otherInfos):
-        predGoalMap = otherInfos
-        goalLoss = self.lossFunc(predGoalMap,gt) * self.lossScale
-        trajLoss = self.lossFunc(pred,gt) * self.lossScale
+    def __call__(self,pred,gt,otherInp, otherOut):
+        gtFutureMap = otherInp[1]
+        predGoalMap = otherOut[1]
+        predTrajMap = otherOut[0]
+        goalLoss = self.lossFunc(predGoalMap,gtFutureMap) * self.lossScale
+        trajLoss = self.lossFunc(predTrajMap,gtFutureMap) * self.lossScale
         return goalLoss + trajLoss
 

@@ -4,33 +4,33 @@ from torch import nn
 from torch.utils.data import DataLoader
 import numpy as np
 from .preprocessing import augmentData, createImagesDict
-from .dataloader import SceneDataset
+from .dataloader import SceneDataset, scene_collate
 from .image_utils import createGaussianHeatmapTemplate, createDistMat, preprocessImageForSegmentation, pad, resize
 from .sampler import createSampler
 # from .__init__ import createSampler
 
 def createImageTrajDataloader(params,type='train'):
 
-    obsLength = params.dataset.obs_len
-    predLength = params.dataset.pred_len
-    if params.dataset.segmentation_model_fp is not None:
-        semanticModel = torch.load(params.dataset.segmentation_model_fp,map_location='cpu')
-        if params.dataset.use_features_only:
+    obsLength = params.obs_len
+    predLength = params.pred_len
+    if params.segmentation_model_fp is not None:
+        semanticModel = torch.load(params.segmentation_model_fp,map_location='cpu')
+        if params.use_features_only:
             semanticModel.segmentation_head = nn.Identity()
             # semanticClasses = 16  # instead of classes use number of feature_dim
     else:
         semanticModel = nn.Identity()
     # totalLength = obsLength + predLength
     if type=='train':
-        trainDataPath = params.dataset.train_data_path
-        trainImagePath = params.dataset.train_image_path
-        valDataPath = params.dataset.val_data_path
-        valImagePath = params.dataset.val_image_path
+        trainDataPath = params.train_data_path
+        trainImagePath = params.train_image_path
+        valDataPath = params.val_data_path
+        valImagePath = params.val_image_path
         if not trainDataPath.endswith('pkl') or not valDataPath.endswith('pkl'):
             raise ValueError('ImageTrajDataloader could only read the pkl data!')
         trainData = pd.read_pickle(trainDataPath)
         valData = pd.read_pickle(valDataPath)
-        datasetName = params.dataset.dataset_name.lower()
+        datasetName = params.dataset_name.lower()
         if datasetName == 'sdd':
             imageFileName = 'reference.jpg'
         elif datasetName == 'ind':
@@ -58,61 +58,67 @@ def createImageTrajDataloader(params,type='train'):
         valImages = createImagesDict(valData, imagePath=valImagePath, imageFile=imageFileName)
 
         # Preprocess images, in particular resize, pad and normalize as semantic segmentation backbone requires
-        resize(trainImages, factor=params.dataset.resize, segMask=segMask)
-        pad(trainImages, divisionFactor=params.dataset.division_factor)  # make sure that image shape is divisible by 32, for UNet segmentation
+        resize(trainImages, factor=params.resize, segMask=segMask)
+        pad(trainImages, divisionFactor=params.division_factor)  # make sure that image shape is divisible by 32, for UNet segmentation
         preprocessImageForSegmentation(trainImages, segMask=segMask)
 
-        resize(valImages, factor=params.dataset.resize, segMask=segMask)
-        pad(valImages, divisionFactor=params.dataset.division_factor)  # make sure that image shape is divisible by 32, for UNet segmentation
+        resize(valImages, factor=params.resize, segMask=segMask)
+        pad(valImages, divisionFactor=params.division_factor)  # make sure that image shape is divisible by 32, for UNet segmentation
         preprocessImageForSegmentation(valImages, segMask=segMask)
 
         # Create template
-        size = int(4200 * params.dataset.resize)
+        size = int(4200 * params.resize)
 
         inputTemplate = createDistMat(size=size)
         inputTemplate = torch.Tensor(inputTemplate)
 
-        gtTemplate = createGaussianHeatmapTemplate(size=size, kernlen=params.dataset.kernlen, nsig=params.dataset.nsig, normalize=False)
+        gtTemplate = createGaussianHeatmapTemplate(size=size, kernlen=params.kernlen, nsig=params.nsig, normalize=False)
         gtTemplate = torch.Tensor(gtTemplate)
 
         # Initialize dataloaders
         trainDataset = SceneDataset(trainData, 
-                                    resize=params.dataset.resize, 
+                                    resize=params.resize, 
                                     obsLength=obsLength,
                                     predLength=predLength,
                                     sceneImages=trainImages,
                                     inputTemplate=inputTemplate,
                                     gtTemplate=gtTemplate,
-                                    waypoints = params.dataset.waypoints,
+                                    waypoints = params.waypoints,
                                     semanticModel=semanticModel)
             # create sampler
         if 'getSamplerInfo' in dir(trainDataset):
             trainSamplerInfo = trainDataset.getSamplerInfo()
         else:
             trainSamplerInfo = len(trainDataset)
-        trainSampler = createSampler(params,trainSamplerInfo)
+        trainSampler = createSampler(params,trainSamplerInfo,**params.sampler.trainkwargs)
         trainLoader = DataLoader(trainDataset, 
-                                 batch_size=params.dataset.batch_size, 
-                                sampler=trainSampler)
+                                 batch_size=params.batch_size, 
+                                sampler=trainSampler,
+                                num_workers=params.num_workers,
+                                prefetch_factor=params.prefetch_factor,
+                                collate_fn=scene_collate)
 
         valDataset = SceneDataset(valData, 
-                                  resize=params.dataset.resize, 
+                                  resize=params.resize, 
                                   obsLength=obsLength,
                                   predLength=predLength,
                                   sceneImages=valImages,
                                   inputTemplate=inputTemplate,
                                   gtTemplate=gtTemplate,
-                                  waypoints = params.dataset.waypoints,
+                                  waypoints = params.waypoints,
                                   semanticModel=semanticModel)
         if 'getSamplerInfo' in dir(valDataset):
             valSamplerInfo = valDataset.getSamplerInfo()
         else:
             valSamplerInfo = len(valDataset)
-        valSampler = createSampler(params,valSamplerInfo)
+        valSampler = createSampler(params,valSamplerInfo,**params.sampler.valkwargs)
         # valSampler = createSampler(params,valDataset.getSamplerInfo())
         valLoader = DataLoader(valDataset, 
-                               batch_size=params.dataset.batch_size,
-                               sampler=valSampler)
+                               batch_size=params.batch_size,
+                               sampler=valSampler,
+                               num_workers=params.num_workers,
+                               prefetch_factor=params.prefetch_factor,
+                               collate_fn=scene_collate)
         return trainLoader, valLoader
     elif type=='test':
         pass

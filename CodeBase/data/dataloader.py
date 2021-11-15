@@ -31,20 +31,20 @@ class SceneDataset(Dataset):
 		self.gtTemplate = gtTemplate
 		self.waypoints = waypoints
 		self.sceneImage = {}
-		for key in sceneImages:
+		for key in tqdm(sceneImages,desc='semantic image'):
 			self.sceneImage[key] = sceneImages[key].unsqueeze(0)
-			# if semanticModel is not None:
-			# 	semanticModel.eval()
-			# 	semanticModel.to(self.sceneImage[key].device)
-			# 	print("input shape:{} key:{}".format(self.sceneImage[key].shape,key))
-			# 	self.sceneImage[key] = semanticModel.predict(self.sceneImage[key])
+			if semanticModel is not None:
+				semanticModel.eval()
+				semanticModel.to(self.sceneImage[key].device)
+				# print("input shape:{} key:{}".format(self.sceneImage[key].shape,key))
+				self.sceneImage[key] = semanticModel.predict(self.sceneImage[key])
 			# 	print("after seg:{}".format(self.sceneImage[key].shape))
 		# print("finished",flush=True)
 		# sceneImage = train_images[scene].to(device).unsqueeze(0)
 		
 
-	def __len__(self):
-		return len(self.trajectories)
+	# def __len__(self):
+	# 	return len(self.trajectories)
 
 	def __getitem__(self, idx):
 		obsLength = self.obsLength
@@ -59,27 +59,20 @@ class SceneDataset(Dataset):
 		
 		observedMap = getPatch(self.inputTemplate, observed, H, W)
 		# print("template:{} obs:{}".format(self.inputTemplate.shape,torch.stack(observedMap).shape))
-		observedMap = torch.stack(observedMap).reshape([-1, obsLength, H, W])
+		observedMap = torch.stack(observedMap).reshape([ obsLength, H, W])
 
 		gtFutureMap = getPatch(self.gtTemplate, gtFuture.reshape(-1, 2), H, W)
-		gtFutureMap = torch.stack(gtFutureMap).reshape([-1, self.predLength, H, W])
+		gtFutureMap = torch.stack(gtFutureMap).reshape([ self.predLength, H, W])
         
 		gtWaypoints = gtFuture[self.waypoints]
 		# print("way points:{}".format(gtWaypoints))
 		gtWaypointMap = getPatch(self.inputTemplate, gtWaypoints.reshape(-1, 2), H, W)
-		gtWaypointMap = torch.stack(gtWaypointMap).reshape([-1, gtWaypoints.shape[0], H, W])
+		gtWaypointMap = torch.stack(gtWaypointMap).reshape([ gtWaypoints.shape[0], H, W])
 
 		# Concatenate heatmap and semantic map
-		semanticMap = self.sceneImage[scene].expand(observedMap.shape[0], -1, -1, -1)  # expand to match heatmap size
-		# print("type:obs:{} gtFuture:{} meta:{} gtFutureMap:{} gtWaypointMap:{} semanticMap:{}".format(
-		# 	type(obs),
-		# 	type(gtFuture),
-		# 	type(meta),
-		# 	type(gtFutureMap),
-		# 	type(gtWaypointMap),
-		# 	type(semanticMap)
-		# ))
-		return obs, gtFuture,observedMap, gtFutureMap, gtWaypointMap, semanticMap
+		semanticMap = self.sceneImage[scene].view(-1,H, W) 
+		
+		return torch.from_numpy(obs),torch.from_numpy(gtFuture), observedMap, gtFutureMap, gtWaypointMap, semanticMap
 
 	def getSamplerInfo(self):
 		c = 0
@@ -90,7 +83,7 @@ class SceneDataset(Dataset):
 				interval.append(c)
 			c+=1
 			tempSceneId = sceneId
-		interval.append(self.__len__())
+		interval.append(len(self.trajectories))
 		# print("interval:{}".format(interval))
 		return interval
 
@@ -114,16 +107,18 @@ class SceneDataset(Dataset):
 		return np.array(trajectory),  scene
 
 
-# def scene_collate(batch):
-# 	obs = []
-# 	gt = []
-# 	gtFutureMap = []
-# 	gtWaypointMap = []
-# 	semanticMap = []
-# 	for _batch in batch:
-# 		obs.append(_batch[0])
-# 		gt.append(_batch[1])
-# 		gtFutureMap.append(_batch[2])
-# 		gtWaypointMap.append(_batch[3])
-# 		semanticMap.append(_batch[4])
-# 	return torch.Tensor(obs),torch.tensor(gt), gtFutureMap, gtWaypointMap, semanticMap
+def scene_collate(batch):
+	obs = []
+	gt = []
+	observedMap = []
+	gtFutureMap = []
+	gtWaypointMap = []
+	semanticMap = []
+	for _batch in batch:
+		obs.append(_batch[0])
+		gt.append(_batch[1])
+		observedMap.append(_batch[2])
+		gtFutureMap.append(_batch[3])
+		gtWaypointMap.append(_batch[4])
+		semanticMap.append(_batch[5])
+	return torch.stack(obs),torch.stack(gt),(torch.stack(observedMap),torch.stack(gtFutureMap), torch.stack(gtWaypointMap), torch.stack(semanticMap))

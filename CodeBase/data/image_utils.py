@@ -89,30 +89,6 @@ def pad(images, divisionFactor=32):
 		im = cv2.copyMakeBorder(im, 0, H_new - H, 0, W_new - W, cv2.BORDER_CONSTANT)
 		images[key] = im
 
-
-def sampling(probability_map, num_samples, rel_threshold=None, replacement=False):
-	# new view that has shape=[batch*timestep, H*W]
-	prob_map = probability_map.view(probability_map.size(0) * probability_map.size(1), -1)
-	if rel_threshold is not None:
-		thresh_values = prob_map.max(dim=1)[0].unsqueeze(1).expand(-1, prob_map.size(1))
-		mask = prob_map < thresh_values * rel_threshold
-		prob_map = prob_map * (~mask).int()
-		prob_map = prob_map / prob_map.sum()
-
-	# samples.shape=[batch*timestep, num_samples]
-	samples = torch.multinomial(prob_map, num_samples=num_samples, replacement=replacement)
-	# samples.shape=[batch, timestep, num_samples]
-
-	# unravel sampled idx into coordinates of shape [batch, time, sample, 2]
-	samples = samples.view(probability_map.size(0), probability_map.size(1), -1)
-	idx = samples.unsqueeze(3)
-	preds = idx.repeat(1, 1, 1, 2).float()
-	preds[:, :, :, 0] = (preds[:, :, :, 0]) % probability_map.size(3)
-	preds[:, :, :, 1] = torch.floor((preds[:, :, :, 1]) / probability_map.size(3))
-
-	return preds
-
-
 def image2world(image_coords, scene, homo_mat, resize):
 	traj_image2world = image_coords.clone()
 	if traj_image2world.dim() == 4:
