@@ -60,10 +60,3 @@ class intervalSampler(Sampler):
         # print("get sampler length",flush=True)
         return self.len
 
-samplerDict = {
-    'custom': CustomSampler,
-    'interval': intervalSampler,
-}
-
-def createSampler(params,samplerInfo=None, **kwargs):
-    return samplerDict[params.sampler.name](params,samplerInfo,**kwargs)

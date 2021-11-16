@@ -1,11 +1,12 @@
 import enum
+from pandas.core import frame
 import yaml
 # from model import YNet,Transformer
 from easydict import EasyDict
 import os
 import logging
 from utils.trainModel import trainModel
-from data import createDataLoader
+from data import createDataLoader, createExtraInfo
 from optimizer import createOptimizer
 from loss import createLossFunction
 import argparse
@@ -28,17 +29,24 @@ def main(params):
     #     obs, gt,  otherInp = infos
     #     logger.info("obs:{}".format(obs.shape))
     #     logger.info("gt:{}".format(gt.shape))
-    #     logger.info("observemap:{}".format(otherInp[0].shape))
-    #     logger.info("gtFutre:{}".format(otherInp[1].shape))
-    #     logger.info("waypoint:{}".format(otherInp[2].shape))
-    #     logger.info("semantic:{}".format(otherInp[3].shape))
+    #     frames, seq_start, dataset, peds = otherInp
+    #     logger.info("frames:{}".format(frames))
+    #     logger.info("seq_start:{}".format(seq_start))
+    #     logger.info("dataset:{}".format(dataset))
+    #     logger.info("peds:{}".format(peds))
+        # logger.info("observemap:{}".format(otherInp[0].shape))
+        # logger.info("gtFutre:{}".format(otherInp[1].shape))
+        # logger.info("waypoint:{}".format(otherInp[2].shape))
+        # logger.info("semantic:{}".format(otherInp[3].shape))
     model = model_dict[params.model.name](**params.model.kwargs)
     if params.model.pretrain !='' and os.path.exists(params.model.pretrain):
         model.load(params.model.pretrain)
     optimizer = createOptimizer(params,model)
+    if params.optim.name =='Noam':
+        optimizer.setWarmUpFactor(len(trainDataLoader))
     lossFunction = createLossFunction(params)
-    
-    trainModel(params, trainDataLoader, valDataLoader,model,optimizer, lossFunction,logger)
+    extraInfo = createExtraInfo(params,[trainDataLoader,valDataLoader])
+    trainModel(params, trainDataLoader, valDataLoader,model,optimizer, lossFunction,extraInfo,logger)
 
 
 

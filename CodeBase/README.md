@@ -1,16 +1,26 @@
 # Code Base
 
-This Code is Based on Y-Net but modified for more model to experiments
+This Code is a code base for trajectory prediction task.
 
 ## dataset
 
 dataset contains:
-- SDD
-- inD
-
-we will try to add ETH/UCY after reproducing Y-net results in ETH/UCY
+- SDD(with image)
+- inD(with image)
+- ETH/UCY(without image)
+we will try to add ETH/UCY(with image) after reproducing Y-net results in ETH/UCY
 
 ## Train
 
-Train.ipynb can Train all net for different configs.
-The config files are all in the config folder.
+Use the train.sh to train model
+```shell
+sh train.sh config/<config_file>
+```
+
+## TEST
+
+not implement
+
+## NOTATION
+
+TODO

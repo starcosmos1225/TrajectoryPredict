@@ -1,7 +1,8 @@
 from torch.optim import Adam
-
+from .Noam import Noam
 optimizer_dict = {
-    'Adam': Adam
+    'Adam': Adam,
+    'Noam': Noam
 }
 
 
