@@ -2,7 +2,7 @@ import numpy as np
 import torch
 import cv2
 import torch.nn.functional as F
-
+import time
 def gkern(kernlen=31, nsig=4):
 	"""	creates gaussian kernel with side length l and a sigma of sig """
 	ax = np.linspace(-(kernlen - 1) / 2., (kernlen - 1) / 2., kernlen)
@@ -36,17 +36,20 @@ def createDistMat(size, normalize=True):
 
 
 def getPatch(template, traj, H, W):
+	# start = time.time()
 	x = np.round(traj[:,0]).astype('int')
 	y = np.round(traj[:,1]).astype('int')
-
+	# print("get patch")
+	# print(x.shape)
+	# print(y.shape)
 	x_low = template.shape[1] // 2 - x
 	x_up = template.shape[1] // 2 + W - x
 	y_low = template.shape[0] // 2 - y
 	y_up = template.shape[0] // 2 + H - y
 	# print(type(x_low))
-	# print("xlow:{}".format(x_low))
+	# print("xlow:{}".format(x_low.shape))
 	patch = [template[y_l:y_u, x_l:x_u] for x_l, x_u, y_l, y_u in zip(x_low, x_up, y_low, y_up)]
-
+	# print("get path inner:{}".format(time.time()-start))
 	return patch
 
 

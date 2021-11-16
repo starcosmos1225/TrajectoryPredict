@@ -8,7 +8,7 @@ from tqdm import tqdm
 import numpy as np
 
 from utils.softargmax import SoftArgmax2D, create_meshgrid
-from data.image_utils import getPatch, createDistMat
+from data.image_utils import getPatch
 from utils.utils import sampling, torch_multivariate_gaussian_heatmap
 from utils.kmeans import kmeans
 
@@ -145,7 +145,7 @@ class YNetDecoder(nn.Module):
 
 class YNetTorch(nn.Module):
     def __init__(self, obs_len, pred_len, segmentation_model_fp, use_features_only=False, semantic_classes=6,
-                             encoder_channels=[], decoder_channels=[], waypoints=1):
+                             encoder_channels=[], decoder_channels=[], waypoints=1,size=0.25, device='cuda:0'):
         """
         Complete Y-net Architecture including semantic segmentation backbone, heatmap embedding and ConvPredictor
         :param obs_len: int, observed timesteps
@@ -169,6 +169,7 @@ class YNetTorch(nn.Module):
 
         self.softargmax_ = SoftArgmax2D(normalized_coordinates=False)
         self.waypoints = waypoints
+        
 
     # def segmentation(self, image):
     #     return self.semantic_segmentation(image)
@@ -195,7 +196,8 @@ class YNetTorch(nn.Module):
             return pred, (predTrajMap,predGoalMap,predGoal)
         else:
             # start = time.time()
-            observedMap, _, gtWaypointMap, semanticMap = otherInp
+
+            observedMap, _, gtWaypointMap, semanticMap,inputTemplate = otherInp
             _, _, H, W = semanticMap.shape
             temperature = params.test.temperature
 
@@ -246,11 +248,12 @@ class YNetTorch(nn.Module):
             # Not using TTST
             else:
                 goalSamples = sampling(predWaypointMapSigmoid[:, -1:], num_samples=params.dataset.num_goals)
-                goalSamples = goalSamples.permute(2, 0, 1, 3)
+                goalSamples = goalSamples.permute(2, 0, 1, 3).contiguous()
 
             # Predict waypoints:
             # in case len(waypoints) == 1, so only goal is needed (goal counts as one waypoint in this implementation)
             if len(self.waypoints) == 1:
+                # print("length=1:{} continuse:{}".format(goalSamples.device,goalSamples.is_contiguous()))
                 waypointSamples = goalSamples
             # print("TTST time:{}".format(time.time()-start))
             # start=time.time()
@@ -311,13 +314,18 @@ class YNetTorch(nn.Module):
                 waypointSamples = torch.cat([waypointSamples, goalSamples], dim=2)
 
             # Interpolate trajectories given goal and waypoints
+            # print("CWS time:{}".format(time.time()-start))
+            # start=time.time()
             futureSamples = []
-            size = int(4200* params.dataset.resize)
-            inputTemplate = createDistMat(size=size)
-            inputTemplate = torch.from_numpy(inputTemplate).float().to(params.device)
+            
+            # print("input template time:{}".format(time.time()-start))
+            # start=time.time()
             # print("inputtmeplate:{}".format(inputTemplate.dtype))
-            for waypoint in waypointSamples:
-                waypointMap = getPatch(inputTemplate, waypoint.reshape(-1, 2).cpu().numpy(), H, W)
+            waypoints = waypointSamples.cpu()
+            for waypoint in waypoints:
+                waypointMap = getPatch(inputTemplate, waypoint.reshape(-1, 2).numpy(), H, W)
+                # print("getpatch time:{}".format(time.time()-start))
+                # start=time.time()
                 # for w in waypointMap:
                 #     print("way:{}".format(w.dtype))
                 waypointMap = torch.stack(waypointMap).reshape([-1, len(self.waypoints), H, W])
@@ -327,9 +335,13 @@ class YNetTorch(nn.Module):
                 # for w in waypointMapsDownsampled:
                 #     print("waypoint :{}".format(w.dtype))
                 trajInput = [torch.cat([feature, goal], dim=1) for feature, goal in zip(features, waypointMapsDownsampled)]
+                # print("downsampled time:{}".format(time.time()-start))
+                # start=time.time()
                 # for t in trajInput:
                 #     print("traj:{}".format(t.dtype))
                 predTrajMap = self.pred_traj(trajInput)
+                # print("pred time:{}".format(time.time()-start))
+                # start=time.time()
                 predTraj = self.softargmax(predTrajMap)
                 futureSamples.append(predTraj)
             # print("after TTST time:{}".format(time.time()-start))

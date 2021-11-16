@@ -18,9 +18,11 @@ def trainModel(params, trainDataLoader,valDataLoader,model,optimizer, lossFuncti
         for epoch in range(maxEpochs):
                 
 
-                counter = 0
+                
                 # training
+                
                 logger.info("{}/{} start training...".format(epoch,maxEpochs))
+                counter = 0
                 train_loss = 0
                 train_ADE = []
                 train_FDE = []
@@ -59,9 +61,10 @@ def trainModel(params, trainDataLoader,valDataLoader,model,optimizer, lossFuncti
                                 #       pred_goal = image2world(pred_goal, scene, homo_mat, params)
                                 #       pred_traj = image2world(pred_traj, scene, homo_mat, params)
                                 #       gt_future = image2world(gt_future, scene, homo_mat, params)
-
+                                
                                 train_ADE.append(((((gt - pred) / params.dataset.resize) ** 2).sum(dim=2) ** 0.5).mean(dim=1))
-                                train_FDE.append(((((gt[:, -1:] - predGoal[:, -1:]) / params.dataset.resize) ** 2).sum(dim=2) ** 0.5).mean(dim=1))
+                                # train_FDE.append(((((gt[:, -1:] - predGoal[:, -1:]) / params.dataset.resize) ** 2).sum(dim=2) ** 0.5).mean(dim=1))
+                                train_FDE.append(((((gt[:, -1:] - pred[:,-1:]) / params.dataset.resize) ** 2).sum(dim=2) ** 0.5).mean(dim=1))
                 train_loss = train_loss / counter
                 train_ADE = torch.cat(train_ADE).mean()
                 train_FDE = torch.cat(train_FDE).mean()
@@ -69,7 +72,8 @@ def trainModel(params, trainDataLoader,valDataLoader,model,optimizer, lossFuncti
                 logger.info('Epoch {}/{} train ADE: {}  train FDE: {} loss:{}'.format(epoch,maxEpochs,train_ADE.item(),train_FDE.item(),train_loss))
                 trainADERecord.append(train_ADE.item())
                 trainFDERecord.append(train_FDE.item())
-
+                
+                # begin eval
                 if epoch % params.test.eval_step ==0:
                         valADE, valFDE = evalModel(params,valDataLoader,model, logger)
                         valADERecord.append(valADE)

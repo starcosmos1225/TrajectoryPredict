@@ -10,7 +10,11 @@ from .sampler import createSampler
 # from .__init__ import createSampler
 
 def createImageTrajDataloader(params,type='train'):
-
+    # print("load to gpu:{}".format(params.load_to_gpu))
+    # if params.load_to_gpu:
+    #     device='cuda:0'
+    # else:
+    #     device='cpu'
     obsLength = params.obs_len
     predLength = params.pred_len
     if params.segmentation_model_fp is not None:
@@ -95,6 +99,7 @@ def createImageTrajDataloader(params,type='train'):
                                  batch_size=params.batch_size, 
                                 sampler=trainSampler,
                                 num_workers=params.num_workers,
+                                # pin_memory=True,
                                 prefetch_factor=params.prefetch_factor,
                                 collate_fn=scene_collate)
 
@@ -118,6 +123,7 @@ def createImageTrajDataloader(params,type='train'):
                                sampler=valSampler,
                                num_workers=params.num_workers,
                                prefetch_factor=params.prefetch_factor,
+                            #    pin_memory=True,
                                collate_fn=scene_collate)
         return trainLoader, valLoader
     elif type=='test':

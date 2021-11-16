@@ -31,6 +31,8 @@ class SceneDataset(Dataset):
 		self.gtTemplate = gtTemplate
 		self.waypoints = waypoints
 		self.sceneImage = {}
+		# self.device = device
+		# print("self device:{}".format(self.device))
 		for key in tqdm(sceneImages,desc='semantic image'):
 			self.sceneImage[key] = sceneImages[key].unsqueeze(0)
 			if semanticModel is not None:
@@ -71,8 +73,13 @@ class SceneDataset(Dataset):
 
 		# Concatenate heatmap and semantic map
 		semanticMap = self.sceneImage[scene].view(-1,H, W) 
-		
-		return torch.from_numpy(obs),torch.from_numpy(gtFuture), observedMap, gtFutureMap, gtWaypointMap, semanticMap
+		# print("device:{}".format(self.device))
+		return torch.from_numpy(obs),\
+			torch.from_numpy(gtFuture),\
+				 observedMap,\
+				gtFutureMap,\
+				gtWaypointMap, \
+				semanticMap
 
 	def getSamplerInfo(self):
 		c = 0
@@ -107,6 +114,31 @@ class SceneDataset(Dataset):
 		return np.array(trajectory),  scene
 
 
+# class scene_collate:
+# 	def __init__(self,device):
+# 		self.device=device
+
+# 	def __call__(self,batch):
+# 		obs = []
+# 		gt = []
+# 		observedMap = []
+# 		gtFutureMap = []
+# 		gtWaypointMap = []
+# 		semanticMap = []
+# 		for _batch in batch:
+# 			print("batch device:{}".format(_batch[0].device))
+# 			obs.append(_batch[0])
+# 			gt.append(_batch[1])
+# 			observedMap.append(_batch[2])
+# 			gtFutureMap.append(_batch[3])
+# 			gtWaypointMap.append(_batch[4])
+# 			semanticMap.append(_batch[5])
+# 		return torch.stack(obs).to(self.device),torch.stack(gt).to(self.device),\
+# 			[torch.stack(observedMap).to(self.device),
+# 			torch.stack(gtFutureMap).to(self.device), 
+# 			torch.stack(gtWaypointMap).to(self.device), 
+# 			torch.stack(semanticMap).to(self.device)]
+
 def scene_collate(batch):
 	obs = []
 	gt = []
@@ -115,10 +147,12 @@ def scene_collate(batch):
 	gtWaypointMap = []
 	semanticMap = []
 	for _batch in batch:
+		# print("batch device:{}".format(_batch[0].device))
 		obs.append(_batch[0])
 		gt.append(_batch[1])
 		observedMap.append(_batch[2])
 		gtFutureMap.append(_batch[3])
 		gtWaypointMap.append(_batch[4])
 		semanticMap.append(_batch[5])
-	return torch.stack(obs),torch.stack(gt),(torch.stack(observedMap),torch.stack(gtFutureMap), torch.stack(gtWaypointMap), torch.stack(semanticMap))
+	return torch.stack(obs),torch.stack(gt),\
+		[torch.stack(observedMap),torch.stack(gtFutureMap), torch.stack(gtWaypointMap), torch.stack(semanticMap)]
