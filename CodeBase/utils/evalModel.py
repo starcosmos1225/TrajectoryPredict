@@ -22,16 +22,12 @@ def evalModel(params, dataloader, model,extraInfo, logger, rounds=1):
                 for info in otherInfo:
                     otherInp.append(info.to(device))
 
-                # otherInp.append(inputTemplate)
                 pred, otherOut = model(obs, otherInp, extraInfo,params)
-
-                # waypointSamples = otherOut[0]
-                # logger.info("check shape")
                 
                 gt_goal = gt[:, -1:]
 
                 resize = params.dataset.resize
-                valFDE.append(((((gt_goal.unsqueeze(0) - pred[:, :,-1:]) / resize) ** 2).sum(dim=3) ** 0.5).min(dim=0)[0])
+                valFDE.append(((((gt_goal.unsqueeze(0) - pred[:, -1:,:]) / resize) ** 2).sum(dim=3) ** 0.5).min(dim=0)[0])
                 valADE.append(((((gt.unsqueeze(0) - pred) / resize) ** 2).sum(dim=3) ** 0.5).mean(dim=2).min(dim=0)[0])
     valADE = torch.cat(valADE).mean()
     valFDE = torch.cat(valFDE).mean()

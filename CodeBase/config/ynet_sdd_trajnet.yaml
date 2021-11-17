@@ -4,7 +4,7 @@ device: 'cuda:0'
 # MODEL
 model:
   name: 'ynet'
-  pretrain: ''
+  pretrain: 'trained_models/sdd_short.pth'
   save_name: 'sdd_short'
   kwargs:
     obs_len: 8
@@ -84,7 +84,7 @@ test:
 
   eval_step: 10
   temperature: 1.0
-  round: 1
+  round: 3
 
 unfreeze: 150  # Unfreeze semantic segmentation model weights after this # of epochs
 viz_epoch: 10

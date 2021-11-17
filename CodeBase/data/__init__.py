@@ -84,4 +84,6 @@ def createDataLoader(params,type='train'):
         raise ValueError('ImageTrajDataloader  is not supported type:{}'.format(type))
 
 def createExtraInfo(params, dataloaders):
+    if 'extra_info_name' not in params or params.extra_info_name not in extraDict:
+        return None
     return extraDict[params.extra_info_name](params, dataloaders)

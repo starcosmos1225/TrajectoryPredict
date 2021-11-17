@@ -10,6 +10,7 @@ from .transformer.encoder import Encoder
 from .transformer.encoder_layer import EncoderLayer
 from .transformer.decoder_layer import DecoderLayer
 from .transformer.batch import subsequent_mask
+from .backbone.Linear import LinearEmbedding
 import numpy as np
 import scipy.io
 import os
@@ -49,16 +50,16 @@ class IndividualTF(nn.Module):
             mean, std = extraInfo
             inp=(obsVel-mean)/std
             target=(predVel-mean)/std
-            target_c=torch.zeros((target.shape[0],target.shape[1],1))
+            target_c=torch.zeros((target.shape[0],target.shape[1],1)).to(device)
             target=torch.cat((target,target_c),-1)
             startOfSeq = torch.Tensor([0, 0, 1]).unsqueeze(0).unsqueeze(1).repeat(target.shape[0],1,1).to(device)
 
             decInp = torch.cat((startOfSeq, target), 1)
-            srcAtt = torch.ones((inp.shape[0], 1,inp.shape[1]))
-            trgAtt=subsequent_mask(decInp.shape[1]).repeat(decInp.shape[0],1,1)
+            srcAtt = torch.ones((inp.shape[0], 1,inp.shape[1])).to(device)
+            trgAtt=subsequent_mask(decInp.shape[1]).repeat(decInp.shape[0],1,1).to(device)
             outVelocity = self.model.generator(self.model(inp,decInp,srcAtt,trgAtt))
             pred = outVelocity[:,:,:2]* std+mean
-            pred = (outVelocity[:, 1:, 0:2] * std + mean).cumsum(dim=1) + obs[:,-1:,:]
+            pred = pred.cumsum(dim=1) + obs[:,-1:,:]
             # position = obs[:,-1,:] # 4,2
             # for i in range(pred.shape[1]):
             #     pred[:,i,:] += position
@@ -69,26 +70,16 @@ class IndividualTF(nn.Module):
             obsVel,predVel = otherInp[0], otherInp[1]
             mean, std = extraInfo
             inp = (obsVel- mean) / std
-            srcAtt = torch.ones((inp.shape[0], 1, inp.shape[1]))
+            srcAtt = torch.ones((inp.shape[0], 1, inp.shape[1])).to(device)
             startOfSeq = torch.Tensor([0, 0, 1]).unsqueeze(0).unsqueeze(1).repeat(inp.shape[0], 1, 1).to(
                     device)
             decInp = startOfSeq
             for i in range(params.dataset.pred_len):
-                trgAtt = subsequent_mask(decInp.shape[1]).repeat(decInp.shape[0], 1, 1)
+                trgAtt = subsequent_mask(decInp.shape[1]).repeat(decInp.shape[0], 1, 1).to(device)
                 outVelocity = self.model.generator(self.model(inp,decInp,srcAtt,trgAtt))
                 decInp = torch.cat((decInp, outVelocity[:, -1:, :]), 1)
             pred = (decInp[:, 1:, 0:2] * std + mean).cumsum(dim=1) + obs[:,-1:,:]
             return pred, None
-
-class LinearEmbedding(nn.Module):
-    def __init__(self, inp_size,d_model):
-        super(LinearEmbedding, self).__init__()
-        # lut => lookup table
-        self.lut = nn.Linear(inp_size, d_model)
-        self.d_model = d_model
-
-    def forward(self, x):
-        return self.lut(x) * math.sqrt(self.d_model)
 
 
 class Generator(nn.Module):

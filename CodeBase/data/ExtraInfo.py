@@ -14,7 +14,6 @@ def datasetMeanStd(params, dataLoaders):
     device = params.device
     train_dataset = dataLoaders[0].dataset
     mean=torch.cat((train_dataset[:]['obs'][:,1:,2:4],train_dataset[:]['pred'][:,:,2:4]),1).mean((0,1))
-    #std=train_dataset[:]['src'][:,1:,2:4].std((0,1))
     std=torch.cat((train_dataset[:]['obs'][:,1:,2:4],train_dataset[:]['pred'][:,:,2:4]),1).std((0,1))
     means=[]
     stds=[]

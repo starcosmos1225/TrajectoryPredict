@@ -5,18 +5,20 @@ import copy
 
 
 class CustomSampler(Sampler):
-    def __init__(self, params, dataInfo):
+    def __init__(self, params, dataInfo, factor=1.0):
         self.len = dataInfo
+        self.sampleLen = int(self.len*factor)
         # print(self.len)
         # print(type(self.len))
         # print("end shwo len")
     
     def __iter__(self):
         index = list(np.random.permutation(self.len))
+        index = index[:self.sampleLen]
         return iter(index)
 
     def __len__(self):
-        return self.len
+        return self.sampleLen
 
 
 class intervalSampler(Sampler):
