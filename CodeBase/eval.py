@@ -41,7 +41,7 @@ def main(params):
         # optimizer.setWarmUpFactor(len(trainDataLoader))
     # lossFunction = createLossFunction(params)
     extraInfo = createExtraInfo(params,[testDataLoader])
-    evalModel(params, testDataLoader, model, extraInfo,logger,params.test.rounds)
+    evalModel(params, testDataLoader, model, extraInfo,logger,params.test.round)
 
 
 

@@ -11,6 +11,7 @@ from utils.softargmax import SoftArgmax2D, create_meshgrid
 from data.image_utils import getPatch
 from utils.utils import sampling, torch_multivariate_gaussian_heatmap
 from utils.kmeans import kmeans
+from utils.utils import samplingTrajFromHeatMap
 
 import time
 
@@ -376,7 +377,7 @@ class YNetTorch(nn.Module):
 class YNetTorchNoGoal(nn.Module):
     def __init__(self, obs_len, pred_len, segmentation_model_fp, use_features_only=False, semantic_classes=6,
                              encoder_channels=[], decoder_channels=[], waypoints=1):
-        super(YNetTorch, self).__init__()
+        super(YNetTorchNoGoal, self).__init__()
 
         if segmentation_model_fp is not None and use_features_only:
             semantic_classes = 16  # instead of classes use number of feature_dim
@@ -384,7 +385,7 @@ class YNetTorchNoGoal(nn.Module):
         self.encoder = YNetEncoder(in_channels=semantic_classes + obs_len, channels=encoder_channels)
 
         # self.goal_decoder = YNetDecoder(encoder_channels, decoder_channels, output_len=pred_len)
-        self.traj_decoder = YNetDecoder(encoder_channels, decoder_channels, output_len=pred_len, traj=len(waypoints))
+        self.traj_decoder = YNetDecoder(encoder_channels, decoder_channels, output_len=pred_len)
 
         self.softargmax_ = SoftArgmax2D(normalized_coordinates=False)
         self.waypoints = waypoints
@@ -396,22 +397,19 @@ class YNetTorchNoGoal(nn.Module):
     # Forward pass for goal decoder
     def forward(self, obs, otherInp=None, extraInfo=None, params=None):
         if self.training:
-            observedMap, _, gtWaypointMap, semanticMap = otherInp
+            observedMap, _, _, semanticMap = otherInp
             _, _, H, W = semanticMap.shape
             featureInput = torch.cat([semanticMap, observedMap], dim=1)
             features = self.pred_features(featureInput)
-            trajInput = features # [torch.cat([feature, goal], dim=1) for feature, goal in zip(features, gtWaypointsMapsDownsampled)]
+            trajInput = features 
             predTrajMap = self.pred_traj(trajInput)
             pred = self.softargmax(predTrajMap)
-            # predGoal = self.softargmax(predGoalMap[:, -1:])
             return pred, (predTrajMap,None,None)
         else:
             # start = time.time()
-
-            observedMap, _, gtWaypointMap, semanticMap = otherInp
-            inputTemplate = extraInfo
+            device = params.device
+            observedMap, _, _, semanticMap = otherInp
             _, _, H, W = semanticMap.shape
-            temperature = params.test.temperature
 
             # Forward pass
             # Calculate features
@@ -419,23 +417,17 @@ class YNetTorchNoGoal(nn.Module):
             features = self.pred_features(featureInput)
         
             futureSamples = []
-            
-            # print("input template time:{}".format(time.time()-start))
-            # start=time.time()
-            # print("inputtmeplate:{}".format(inputTemplate.dtype))
     
             trajInput = features 
             predTrajMap = self.pred_traj(trajInput)
-                # print("pred time:{}".format(time.time()-start))
-                # start=time.time()
-            for _ in range(params.dataset.num_Traj):
-                predTraj = self.samplingTrajFrom(predTrajMap)
-                futureSamples.append(predTraj)
-            # print("after TTST time:{}".format(time.time()-start))
-            # start=time.time()
-            futureSamples = torch.stack(futureSamples)
+
+            predTrajMap = self.softmax(predTrajMap)
+
+            predTraj = samplingTrajFromHeatMap(predTrajMap.cpu().numpy(),params.dataset.num_traj)
+            futureSamples = torch.from_numpy(predTraj).to(device)
             return futureSamples, None
 
+    
 
 
     def pred_goal(self, features):

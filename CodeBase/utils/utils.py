@@ -1,5 +1,7 @@
 
 import torch
+from multiprocessing import Process
+import numpy as np
 
 def sampling(probability_map, num_samples, rel_threshold=None, replacement=False):
 	# new view that has shape=[batch*timestep, H*W]
@@ -47,3 +49,39 @@ def torch_multivariate_gaussian_heatmap(coordinates, H, W, dist, sigma_factor, r
 	kernel = (torch.matmul(meshgrid, torch.inverse(T)) * meshgrid).sum(-1)
 	kernel = torch.exp(-0.5 * kernel)
 	return kernel / kernel.sum()
+
+def choiceIndex(mat, index, outMat,N):
+	# mat, index, outMat = inf
+	pred = index
+	for y in range(pred):
+		m = mat[y]
+		xy = np.random.choice(range(m.size),size=N,p=m.flatten())
+		# print(xy.shape)
+		outMat[:,y,0], outMat[:,y,1] = np.unravel_index(xy, m.shape)
+
+
+def samplingTrajFromHeatMap(mat,N):
+	'''
+	mat: (batch, predlength, H,W)
+	N: sample numbers
+	return: (batch, predlength,2)
+	'''
+	# print(mat.shape)
+	b, pred,H,W = mat.shape
+	res = np.zeros((N,b,pred,2))
+	# infos = []
+	threads = []
+	for i in range(b):
+		# choiceIndex(mat[i],pred, res[:,i,:,:],N)
+		p = Process(target=choiceIndex, args=(mat[i], pred, res[:,i,:,:],N))
+		p.start()
+		threads.append(p)
+	for p in threads:
+		p.join()
+		
+	# for i in range(b):
+	# 	infos.append((mat[i], pred, res[i]))
+	# with Pool(8) as p:
+	# 	p.map(choiceIndex, infos)
+	# print(res)
+	return res

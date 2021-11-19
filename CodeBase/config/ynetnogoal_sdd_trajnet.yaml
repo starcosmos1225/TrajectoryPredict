@@ -1,0 +1,91 @@
+experiment_name: 'ynetnogoal_sdd_trajnet' 
+device: 'cpu'
+
+# MODEL
+model:
+  name: 'ynetnoGoal'
+  pretrain: ''
+  save_name: 'ynetnogoal_sdd_short'
+  kwargs:
+    obs_len: 8
+    pred_len: 12  # in timesteps
+    segmentation_model_fp: 'segmentation_models/SDD_segmentation.pth'
+    use_features_only: False # If True the segmentation model only uses the
+    semantic_classes: 6
+    encoder_channels: [32,32,64,64,64]
+    decoder_channels: [64,64,64,32,32]
+# list of selected goal and waypoints as timestep idx, e.g. 14 means the 14th future timestep is used as a waypoint,
+# last element is goal timestep
+    waypoints: [11]
+
+  # loss
+  loss_function: 
+    name: 'GoalTrajLoss'
+    kwargs:
+      loss_scale: 1000  # factor to scale the loss
+#dataset
+
+dataset:
+  name: 'sdd'
+  dataset_name: 'scene_dataset'
+  num_goals: 1  # K_e
+  num_traj: 20  # K_a
+  train_data_path: '../dataset/SDD/train_trajnet.pkl'
+  train_image_path: '../dataset/SDD/train'
+  val_data_path: '../dataset/SDD/test_trajnet.pkl'
+  val_image_path: '../dataset/SDD/test'
+  test_data_path: '../dataset/SDD/test_trajnet.pkl'
+  test_image_path: '../dataset/SDD/test'
+
+  # data info
+  resize: 0.25
+  batch_size: 4
+  obs_len: 8
+  pred_len: 12
+  num_workers: 4 
+  prefetch_factor: 2
+  # load_to_gpu: True
+  # Ynet
+  division_factor: 32 # use in Ynet the division factor must be 2^(len(encoder_channels))
+  kernlen: 31  # (image) size of Gaussian kernel used for ground-truth Gaussian heatmap
+  nsig: 4  # sigma of Gaussian kernel used for ground-truth Gaussian heatmap
+  waypoints: [11]
+  # For semantic map
+  segmentation_model_fp: segmentation_models/SDD_segmentation.pth
+  semantic_classes: 6
+  use_features_only: False  # If True the segmentation model only uses the
+
+  #Sampler
+  sampler: 
+    name: 'interval' # custom or interval
+    trainkwargs:
+      num_interval: 25 # for one epoch, the max num_interval for sampling
+    valkwargs:
+      num_interval: 999999 # for one epoch, the max num_interval for sampling
+  #collate:
+  collate_name: 'scene_collate'
+
+optim:
+  name: 'Adam'
+  kwargs:
+    lr: 0.0001
+  # learning_rate: 0.0001
+  num_epochs: 300
+
+# TEST
+
+test:
+  # TTST
+  use_TTST: False
+  rel_threshold: 0.01
+  # CWS
+  use_CWS: False
+  CWS_params: None
+
+  eval_step: 10
+  temperature: 1.0
+  round: 3
+
+unfreeze: 150  # Unfreeze semantic segmentation model weights after this # of epochs
+viz_epoch: 10
+extra_info_name: 'inputTemplate'

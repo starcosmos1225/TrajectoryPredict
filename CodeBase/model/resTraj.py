@@ -62,6 +62,7 @@ class resnetTraj(nn.Module):
         self.decoder = nn.Sequential(
             #b, cin,h,w -> b, prelen*2, h,w
                 conv3x3(in_planes=self.baseModel.inplanes, out_planes=pred_len*2, groups=pred_len),
+                nn.Tanh(),
                 nn.BatchNorm2d(pred_len*2),
                 nn.AdaptiveAvgPool2d((1,1))
         )
@@ -76,8 +77,8 @@ class resnetTraj(nn.Module):
             # print("input shape:{}".format(featureInput.shape))
             features = self.baseModel(featureInput)
             # print("output features:{}".format(features.shape))
-            out = self.decoder(features)
-            pred = torch.tanh(out)
+            pred = self.decoder(features)
+            # pred = out.tanh()
             pred = pred.view(-1,self.predLength,2)
             pred[:,:,0] = (pred[:,:,0] + 1.0)*W*0.5
             pred[:,:,1] = (pred[:,:,1] + 1.0)*H*0.5
@@ -87,8 +88,8 @@ class resnetTraj(nn.Module):
             _, _, H, W = semanticMap.shape
             featureInput = torch.cat([semanticMap, observedMap], dim=1)
             features = self.baseModel(featureInput)
-            out = self.decoder(features)
-            pred = torch.tanh(out)
+            pred = self.decoder(features)
+            # pred = out.tanh()
             pred = pred.view(-1,self.predLength,2)
             # x = (x+1.0)*W/2
             # y = (y+1.0)*H/2 
