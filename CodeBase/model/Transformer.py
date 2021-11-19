@@ -36,7 +36,6 @@ class IndividualTF(nn.Module):
             nn.Sequential(LinearEmbedding(enc_inp_size,d_model), c(position)),
             nn.Sequential(LinearEmbedding(dec_inp_size,d_model), c(position)),
             Generator(d_model, dec_out_size))
-        print("init IndividualTF")
         # This was important from their code.
         # Initialize parameters with Glorot / fan_avg.
         for p in self.model.parameters():

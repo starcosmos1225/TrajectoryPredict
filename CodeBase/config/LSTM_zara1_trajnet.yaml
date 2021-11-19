@@ -1,22 +1,17 @@
-experiment_name: 'transformer_eth_trajnet' 
-device: 'cuda:0'
+experiment_name: 'lstm_zara1_trajnet' 
+device: 'cpu'
 
 # MODEL
 model:
-  name: 'transformer'
+  name: 'singleLSTM'
   pretrain: ''
-  save_name: 'transformer_eth'
+  save_name: 'lstm_zara1'
   kwargs:
-    enc_inp_size: 2
-    dec_inp_size: 3
-    dec_out_size: 3
-    N: 6
-    d_model: 512
-    d_ff: 2048
-    h: 8
-    dropout: 0.1
-    mean: [0,0]
-    std: [0,0]
+    inp_size: 2 
+    out_size: 3
+    num_layers: 3
+    hidden_size: 512
+    
     # obs_len: 8
     # pred_len: 12  # in timesteps
     
@@ -29,15 +24,15 @@ model:
 #dataset
 
 dataset:
-  name: 'eth' # imageTraj or trajectory(not support)
-  dataset_name: 'traj_dataset'
+  name: 'zara1' 
+  dataset_name: 'traj_dataset' 
   num_goals: 1  # K_e
   num_traj: 1  # K_a
-  train_data_path: '../dataset/eth/train'
+  train_data_path: '../dataset/zara1/train'
   train_image_path: ''
-  val_data_path: '../dataset/eth/test'
+  val_data_path: '../dataset/zara1/test'
   val_image_path: ''
-  test_data_path: '../dataset/eth/test'
+  test_data_path: '../dataset/zara1/test'
   test_image_path: ''
 
   # data info

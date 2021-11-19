@@ -373,6 +373,116 @@ class YNetTorch(nn.Module):
     def save(self, path):
         torch.save(self.state_dict(), path)
 
+class YNetTorchNoGoal(nn.Module):
+    def __init__(self, obs_len, pred_len, segmentation_model_fp, use_features_only=False, semantic_classes=6,
+                             encoder_channels=[], decoder_channels=[], waypoints=1):
+        super(YNetTorch, self).__init__()
+
+        if segmentation_model_fp is not None and use_features_only:
+            semantic_classes = 16  # instead of classes use number of feature_dim
+
+        self.encoder = YNetEncoder(in_channels=semantic_classes + obs_len, channels=encoder_channels)
+
+        # self.goal_decoder = YNetDecoder(encoder_channels, decoder_channels, output_len=pred_len)
+        self.traj_decoder = YNetDecoder(encoder_channels, decoder_channels, output_len=pred_len, traj=len(waypoints))
+
+        self.softargmax_ = SoftArgmax2D(normalized_coordinates=False)
+        self.waypoints = waypoints
+        
+
+    # def segmentation(self, image):
+    #     return self.semantic_segmentation(image)
+
+    # Forward pass for goal decoder
+    def forward(self, obs, otherInp=None, extraInfo=None, params=None):
+        if self.training:
+            observedMap, _, gtWaypointMap, semanticMap = otherInp
+            _, _, H, W = semanticMap.shape
+            featureInput = torch.cat([semanticMap, observedMap], dim=1)
+            features = self.pred_features(featureInput)
+            trajInput = features # [torch.cat([feature, goal], dim=1) for feature, goal in zip(features, gtWaypointsMapsDownsampled)]
+            predTrajMap = self.pred_traj(trajInput)
+            pred = self.softargmax(predTrajMap)
+            # predGoal = self.softargmax(predGoalMap[:, -1:])
+            return pred, (predTrajMap,None,None)
+        else:
+            # start = time.time()
+
+            observedMap, _, gtWaypointMap, semanticMap = otherInp
+            inputTemplate = extraInfo
+            _, _, H, W = semanticMap.shape
+            temperature = params.test.temperature
+
+            # Forward pass
+            # Calculate features
+            featureInput = torch.cat([semanticMap, observedMap], dim=1)
+            features = self.pred_features(featureInput)
+        
+            futureSamples = []
+            
+            # print("input template time:{}".format(time.time()-start))
+            # start=time.time()
+            # print("inputtmeplate:{}".format(inputTemplate.dtype))
+    
+            trajInput = features 
+            predTrajMap = self.pred_traj(trajInput)
+                # print("pred time:{}".format(time.time()-start))
+                # start=time.time()
+            for _ in range(params.dataset.num_Traj):
+                predTraj = self.samplingTrajFrom(predTrajMap)
+                futureSamples.append(predTraj)
+            # print("after TTST time:{}".format(time.time()-start))
+            # start=time.time()
+            futureSamples = torch.stack(futureSamples)
+            return futureSamples, None
+
+
+
+    def pred_goal(self, features):
+        goal = self.goal_decoder(features)
+        return goal
+
+    # Forward pass for trajectory decoder
+    def pred_traj(self, features):
+        traj = self.traj_decoder(features)
+        return traj
+
+    # Forward pass for feature encoder, returns list of feature maps
+    def pred_features(self, x):
+        features = self.encoder(x)
+        return features
+
+    # Softmax for Image data as in dim=NxCxHxW, returns softmax image shape=NxCxHxW
+    def softmax(self, x):
+        return nn.Softmax(2)(x.view(*x.size()[:2], -1)).view_as(x)
+
+    # Softargmax for Image data as in dim=NxCxHxW, returns 2D coordinates=Nx2
+    def softargmax(self, output):
+        return self.softargmax_(output)
+
+    def sigmoid(self, output):
+        return torch.sigmoid(output)
+
+    def softargmax_on_softmax_map(self, x):
+        """ Softargmax: As input a batched image where softmax is already performed (not logits) """
+        pos_y, pos_x = create_meshgrid(x, normalized_coordinates=False)
+        pos_x = pos_x.reshape(-1)
+        pos_y = pos_y.reshape(-1)
+        x = x.flatten(2)
+
+        estimated_x = pos_x * x
+        estimated_x = torch.sum(estimated_x, dim=-1, keepdim=True)
+        estimated_y = pos_y * x
+        estimated_y = torch.sum(estimated_y, dim=-1, keepdim=True)
+        softargmax_coords = torch.cat([estimated_x, estimated_y], dim=-1)
+        return softargmax_coords
+    
+    def load(self, path):
+        print(self.load_state_dict(torch.load(path)))
+    
+    def save(self, path):
+        torch.save(self.state_dict(), path)
+
 
                 
 

@@ -11,6 +11,7 @@ from optimizer import createOptimizer
 from loss import createLossFunction
 import argparse
 import warnings
+import torch
 from torch.serialization import SourceChangeWarning
 import json
 from model import model_dict
@@ -24,6 +25,7 @@ logger = logging.getLogger(__name__)
 
 
 def main(params):
+    torch.autograd.set_detect_anomaly(True)
     trainDataLoader, valDataLoader = createDataLoader(params.dataset)
     # for idx, infos in enumerate(trainDataLoader):
     #     obs, gt,  otherInp = infos

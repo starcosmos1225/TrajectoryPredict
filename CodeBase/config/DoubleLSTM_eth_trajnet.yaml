@@ -1,22 +1,17 @@
-experiment_name: 'transformer_eth_trajnet' 
-device: 'cuda:0'
+experiment_name: 'lstm_eth_trajnet' 
+device: 'cpu'
 
 # MODEL
 model:
-  name: 'transformer'
+  name: 'doubleLSTM'
   pretrain: ''
-  save_name: 'transformer_eth'
+  save_name: 'lstm_eth'
   kwargs:
-    enc_inp_size: 2
-    dec_inp_size: 3
-    dec_out_size: 3
-    N: 6
-    d_model: 512
-    d_ff: 2048
-    h: 8
-    dropout: 0.1
-    mean: [0,0]
-    std: [0,0]
+    inp_size: 2 
+    out_size: 3
+    num_layers: 3
+    hidden_size: 512
+    
     # obs_len: 8
     # pred_len: 12  # in timesteps
     

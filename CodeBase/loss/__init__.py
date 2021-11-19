@@ -1,7 +1,8 @@
-from .lossfunction import GoalTrajLoss, PairwiseDistanceLoss
+from .lossfunction import GoalTrajLoss, PairwiseDistanceLoss, TrajMSELoss
 lossfunc = {
     'GoalTrajLoss': GoalTrajLoss,
-    'pairwise_distance_loss': PairwiseDistanceLoss
+    'pairwise_distance_loss': PairwiseDistanceLoss,
+    'TrajMSELoss': TrajMSELoss
 }
 
 def createLossFunction(params):

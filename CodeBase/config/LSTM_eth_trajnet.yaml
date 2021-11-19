@@ -36,7 +36,7 @@ dataset:
   test_image_path: ''
 
   # data info
-  resize: 0.25
+  resize: 1.0
   batch_size: 100
   obs_len: 8
   pred_len: 12

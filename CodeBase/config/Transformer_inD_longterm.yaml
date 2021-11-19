@@ -1,11 +1,11 @@
-experiment_name: 'transformer_eth_trajnet' 
+experiment_name: 'transformer_ind_trajnet' 
 device: 'cuda:0'
 
 # MODEL
 model:
   name: 'transformer'
   pretrain: ''
-  save_name: 'transformer_eth'
+  save_name: 'transformer_ind'
   kwargs:
     enc_inp_size: 2
     dec_inp_size: 3
@@ -29,22 +29,22 @@ model:
 #dataset
 
 dataset:
-  name: 'eth' # imageTraj or trajectory(not support)
+  name: 'ind' # imageTraj or trajectory(not support)
   dataset_name: 'traj_dataset'
   num_goals: 1  # K_e
   num_traj: 1  # K_a
-  train_data_path: '../dataset/eth/train'
+  train_data_path: '../dataset/inD/train.pkl'
   train_image_path: ''
-  val_data_path: '../dataset/eth/test'
+  val_data_path: '../dataset/inD/test.pkl'
   val_image_path: ''
-  test_data_path: '../dataset/eth/test'
+  test_data_path: '../dataset/inD/test.pkl'
   test_image_path: ''
 
   # data info
   resize: 1.0
   batch_size: 100
-  obs_len: 8
-  pred_len: 12
+  obs_len: 5
+  pred_len: 30
   num_workers: 4 
   prefetch_factor: 2
   # load_to_gpu: True
@@ -61,7 +61,8 @@ dataset:
   #Sampler
   sampler: 
     name: 'custom' # custom or interval
-    trainkwargs: {}
+    trainkwargs: 
+      factor: 1.0 # each epoch sampling 20% trajectoies from dataset
       # num_interval: 25 # for one epoch, the max num_interval for sampling
     valkwargs: {}
       # num_interval: 9999999 # for one epoch, the max num_interval for sampling
@@ -73,7 +74,7 @@ optim:
     emb_size: 512
     factor: 1.0
     warmup: 10
-    lr: 0.0
+    lr: 0.0001
   # learning_rate: 0.0001
   num_epochs: 300
 

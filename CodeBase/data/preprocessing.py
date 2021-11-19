@@ -191,7 +191,7 @@ def rot(df, image, k=1):
 	'''
 	Rotates image and coordinates counter-clockwise by k * 90° within image origin
 	:param df: Pandas DataFrame with at least columns 'x' and 'y'
-	:param image: PIL Image
+	:param image: cv Image
 	:param k: Number of times to rotate by 90°
 	:return: Rotated Dataframe and image
 	'''
