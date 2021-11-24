@@ -52,7 +52,6 @@ def kmeans(
 
     # transfer to device
     X = X.to(device)
-
     # initialize
     if type(cluster_centers) == list: #ToDo: make this less annoyingly weird
         initial_state = initialize(X, num_clusters)
@@ -71,7 +70,6 @@ def kmeans(
     while True:
         
         dis = pairwise_distance_function(X, initial_state)
-
         choice_cluster = torch.argmin(dis, dim=1)
 
         initial_state_pre = initial_state.clone()

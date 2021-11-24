@@ -162,6 +162,8 @@ class YNetTorch(nn.Module):
             features = self.pred_features(featureInput)
 
             predGoalMap = self.pred_goal(features)
+            # gtWaypointsMapsDownsampled = [nn.AvgPool2d(kernel_size=2**i, stride=2**i)(predGoalMap) for i in range(1, len(features))]
+            # gtWaypointsMapsDownsampled = [predGoalMap] + gtWaypointsMapsDownsampled
             gtWaypointsMapsDownsampled = [nn.AvgPool2d(kernel_size=2**i, stride=2**i)(gtWaypointMap) for i in range(1, len(features))]
             gtWaypointsMapsDownsampled = [gtWaypointMap] + gtWaypointsMapsDownsampled
                         
@@ -170,6 +172,7 @@ class YNetTorch(nn.Module):
 
             pred = self.softargmax(predTrajMap)
             predGoal = self.softargmax(predGoalMap[:, -1:])
+            # print("pred gaol shape:{}".format(predGoalMap))
             return pred, (predTrajMap,predGoalMap,predGoal)
         else:
             # start = time.time()
@@ -187,15 +190,16 @@ class YNetTorch(nn.Module):
             #     print("features:{}".format(f.dtype))
             # Predict goal and waypoint probability distributions
             predWaypointMap = self.pred_goal(features)
+            # predWaypointMap = predWaypointMap[:,-1:]
             predWaypointMap = predWaypointMap[:, self.waypoints]
 
             predWaypointMapSigmoid = predWaypointMap / temperature
             predWaypointMapSigmoid = self.sigmoid(predWaypointMapSigmoid)
-            # print("pred goal time:{}".format(time.time()-start))
-            # start=time.time()
+            
+
             ################################################ TTST ##################################################
             use_TTST = params.test.use_TTST
-            if use_TTST:
+            if use_TTST and params.dataset.num_goals>1:
                 # TTST Begin
                 # sample a large amount of goals to be clustered
                 rel_thresh = params.test.rel_threshold
@@ -204,6 +208,7 @@ class YNetTorch(nn.Module):
                 goalSamples = goalSamples.permute(2, 0, 1, 3)
                 # print("sampling goal time:{}".format(time.time()-start))
                 # start=time.time()
+                # print(goalSamples.shape)
                 numClusters = params.dataset.num_goals - 1
                 goalSamplesSoftargmax = self.softargmax(predWaypointMap[:, -1:])  # first sample is softargmax sample
                 # Iterate through all person/batch_num, as this k-Means implementation doesn't support batched clustering
@@ -214,7 +219,13 @@ class YNetTorch(nn.Module):
                     # Actual k-means clustering, Outputs:
                     # cluster_ids_x -  Information to which cluster_idx each point belongs to
                     # cluster_centers - list of centroids, which are our new goal samples
-                    clusterIdsX, clusterCenters = kmeans(X=goalSample, num_clusters=numClusters, distance='euclidean', device=params.device, tqdm_flag=False, tol=0.001, iter_limit=1000)
+                    clusterIdsX, clusterCenters = kmeans(X=goalSample, 
+                                                         num_clusters=numClusters, 
+                                                         distance='euclidean', 
+                                                         device=params.device, 
+                                                         tqdm_flag=False,
+                                                          tol=0.001, 
+                                                          iter_limit=1000)
                     goalSamplesList.append(clusterCenters)
                 # print("kmeans time:{} num:{}".format(time.time()-start, goalSamples.shape[1]))
                 # start=time.time()
@@ -258,7 +269,7 @@ class YNetTorch(nn.Module):
                             lengthRatio = 1 / (waypointNum + 2)
                             gaussMean = coordinate + (dist * lengthRatio)  # Get the intermediate point's location using CV model
                             sigmaFactor_ = sigmaFactor - trajIdx
-                            gaussianHeatmaps.append(torch_multivariate_gaussian_heatmap(gaussMean, H, W, dist, sigmaFactor_, ratio, params.dataset.device, rot))
+                            gaussianHeatmaps.append(torch_multivariate_gaussian_heatmap(gaussMean, H, W, dist, sigmaFactor_, ratio, params.device, rot))
                         gaussianHeatmaps = torch.stack(gaussianHeatmaps)  # [N, H, W]
 
                         waypointMapBefore = predWaypointMapSigmoid[:, waypointNum]
@@ -290,40 +301,19 @@ class YNetTorch(nn.Module):
                 waypointSamples = waypointSamples.permute(2, 0, 1, 3)
                 goalSamples = goalSamples.repeat(params.dataset.num_traj, 1, 1, 1)  # repeat K_a times
                 waypointSamples = torch.cat([waypointSamples, goalSamples], dim=2)
-
-            # Interpolate trajectories given goal and waypoints
-            # print("CWS time:{}".format(time.time()-start))
-            # start=time.time()
             futureSamples = []
             
-            # print("input template time:{}".format(time.time()-start))
-            # start=time.time()
-            # print("inputtmeplate:{}".format(inputTemplate.dtype))
             waypoints = waypointSamples.cpu()
             for waypoint in waypoints:
                 waypointMap = getPatch(inputTemplate, waypoint.reshape(-1, 2).numpy(), H, W)
-                # print("getpatch time:{}".format(time.time()-start))
-                # start=time.time()
-                # for w in waypointMap:
-                #     print("way:{}".format(w.dtype))
                 waypointMap = torch.stack(waypointMap).reshape([-1, len(self.waypoints), H, W])
-
                 waypointMapsDownsampled = [nn.AvgPool2d(kernel_size=2 ** i, stride=2 ** i)(waypointMap) for i in range(1, len(features))]
                 waypointMapsDownsampled = [waypointMap] + waypointMapsDownsampled
-                # for w in waypointMapsDownsampled:
-                #     print("waypoint :{}".format(w.dtype))
                 trajInput = [torch.cat([feature, goal], dim=1) for feature, goal in zip(features, waypointMapsDownsampled)]
-                # print("downsampled time:{}".format(time.time()-start))
-                # start=time.time()
-                # for t in trajInput:
-                #     print("traj:{}".format(t.dtype))
                 predTrajMap = self.pred_traj(trajInput)
-                # print("pred time:{}".format(time.time()-start))
-                # start=time.time()
                 predTraj = self.softargmax(predTrajMap)
                 futureSamples.append(predTraj)
-            # print("after TTST time:{}".format(time.time()-start))
-            # start=time.time()
+
             futureSamples = torch.stack(futureSamples)
             return futureSamples, (waypointSamples)
 
@@ -422,9 +412,10 @@ class YNetTorchNoGoal(nn.Module):
             predTrajMap = self.pred_traj(trajInput)
 
             predTrajMap = self.softmax(predTrajMap)
-
-            predTraj = samplingTrajFromHeatMap(predTrajMap.cpu().numpy(),params.dataset.num_traj)
+            pred = self.softargmax(predTrajMap).unsqueeze(0)
+            predTraj = samplingTrajFromHeatMap(predTrajMap.cpu().numpy(),params.dataset.num_traj-1)
             futureSamples = torch.from_numpy(predTraj).to(device)
+            futureSamples = torch.cat((pred,futureSamples),dim=0)
             return futureSamples, None
 
     

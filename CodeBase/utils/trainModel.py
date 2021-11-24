@@ -7,10 +7,9 @@ from .evalModel import evalModel
 def trainModel(params, trainDataLoader,valDataLoader,model,optimizer, lossFunction,extraInfo,logger):
         
         device = params.device
-        model.to(device)
         
         bestTestADE = 999999999
-        TestFDE = 999999999
+        bestTestFDE = 999999999
         trainADERecord = []
         trainFDERecord = []
         valADERecord = []
@@ -38,6 +37,8 @@ def trainModel(params, trainDataLoader,valDataLoader,model,optimizer, lossFuncti
                                 otherInp.append(inp.to(device))
 
                         pred, otherOut = model(obs,otherInp,extraInfo, params)
+                        # print(pred.shape)
+                        assert len(pred.shape)==3 and len(gt.shape)==3, "Training model prediction trajectoies' shape must be (batch, squence, position)"
                         # logger.info("predVel info:{}".format(otherOut[0].shape))
                         # logger.info(otherOut[0])
                         loss = lossFunction(pred, gt, otherInp, otherOut,extraInfo)
@@ -49,7 +50,7 @@ def trainModel(params, trainDataLoader,valDataLoader,model,optimizer, lossFuncti
                         optimizer.step()
                         # logger.info("backward time:{}".format(time()-start))
                         # start = time()
-
+                        
                         with torch.no_grad():
                                 train_loss += loss
                                 # Evaluate using Softargmax, not a very exact evaluation but a lot faster than full prediction
@@ -61,9 +62,13 @@ def trainModel(params, trainDataLoader,valDataLoader,model,optimizer, lossFuncti
                                 #       pred_traj = image2world(pred_traj, scene, homo_mat, params)
                                 #       gt_future = image2world(gt_future, scene, homo_mat, params)
                                 # logger.info("pred shape:{} gt shape:{}".format(pred.shape,gt.shape))
-                                train_ADE.append(((((gt - pred) / params.dataset.resize) ** 2).sum(dim=2) ** 0.5).mean(dim=1))
+                                # logger.info("gt:{}".format(gt[:, -1:]))
+                                # logger.info("pred:{}".format(pred[:,-1:]))
+                                # logger.info(((((gt[:, -1:] - pred[:,-1:]) / params.dataset.resize) ** 2).sum(dim=2) ** 0.5).mean(dim=0))
+                                # t=input()
+                                train_ADE.append(((((gt - pred) / params.dataset.resize) ** 2).sum(dim=2) ** 0.5).mean(dim=0))
                                 # train_FDE.append(((((gt[:, -1:] - predGoal[:, -1:]) / params.dataset.resize) ** 2).sum(dim=2) ** 0.5).mean(dim=1))
-                                train_FDE.append(((((gt[:, -1:] - pred[:,-1:]) / params.dataset.resize) ** 2).sum(dim=2) ** 0.5).mean(dim=1))
+                                train_FDE.append(((((gt[:, -1:] - pred[:,-1:]) / params.dataset.resize) ** 2).sum(dim=2) ** 0.5).mean(dim=0))
                 train_loss = train_loss / counter
                 train_ADE = torch.cat(train_ADE).mean()
                 train_FDE = torch.cat(train_FDE).mean()
@@ -73,8 +78,7 @@ def trainModel(params, trainDataLoader,valDataLoader,model,optimizer, lossFuncti
                 trainFDERecord.append(train_FDE.item())
                 # '''
                 # begin eval
-                
-                if epoch % params.test.eval_step ==0 or epoch == maxEpochs-1:
+                if  epoch % params.test.eval_step ==0 or epoch == maxEpochs-1:
                         valADE, valFDE = evalModel(params,valDataLoader,model,extraInfo, logger)
                         valADERecord.append(valADE)
                         valFDERecord.append(valFDE)
@@ -82,7 +86,9 @@ def trainModel(params, trainDataLoader,valDataLoader,model,optimizer, lossFuncti
                         if valADE<bestTestADE:
                                 logger.info('Epoch {}/{} best val ADE: {}'.format(epoch,maxEpochs,valADE))
                                 bestTestADE = valADE
-                                testFDE = valFDE
+                                bestTestFDE = valFDE
                                 torch.save(model.state_dict(),'trained_models/{}.pth'.format(params.model.save_name))
-        logger.info('finish training and the  best val ADE: {} with FDE:{}'.format(bestTestADE, testFDE))      
+                        logger.info('Epoch {}/{} best ADE: {}  best FDE: {}'.format(
+                                epoch,maxEpochs,bestTestADE,bestTestFDE))
+        logger.info('finish training and the  best val ADE: {} with FDE:{}'.format(bestTestADE, bestTestFDE))      
         return 

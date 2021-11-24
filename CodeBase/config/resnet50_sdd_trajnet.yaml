@@ -4,7 +4,7 @@ device: 'cuda:0'
 # MODEL
 model:
   name: 'resnetTraj'
-  pretrain: ''
+  pretrain: 'trained_models/resnet50_sdd_short.pth'
   save_name: 'resnet50_sdd_short'
   kwargs:
     obs_len: 8

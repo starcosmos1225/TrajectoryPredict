@@ -19,7 +19,10 @@ sh train.sh config/<config_file>
 
 ## TEST
 
-not implement
+Use the eval.sh to test model
+```shell
+sh eval.sh config/<config_file>
+```
 
 ## NOTATION
 

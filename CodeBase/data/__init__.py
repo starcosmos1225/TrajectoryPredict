@@ -1,9 +1,10 @@
 # from TrajDataloader import TrajDataloader
 from torch.utils.data import DataLoader
 from .sampler import CustomSampler, intervalSampler
-from .dataset.SceneDataset import SceneDataset, scene_collate
-from .dataset.TrajDataset import TrajDataset,traj_collate
-from .ExtraInfo import inputTemplate, datasetMeanStd
+from .dataset.SceneDataset import SceneDataset
+from .dataset.TrajDataset import TrajDataset
+from .ExtraInfo import inputTemplate, datasetMeanStd, constantFactor
+from .collate_fn import scene_collate,traj_collate, PECtraj_collate
 datasetDict = {
     'scene_dataset': SceneDataset,
     'traj_dataset': TrajDataset,
@@ -15,12 +16,14 @@ samplerDict = {
 
 collateDict = {
     'scene_collate': scene_collate,
-    'traj_collate': traj_collate
+    'traj_collate': traj_collate,
+    'PECtraj_collate': PECtraj_collate,
 }
 
 extraDict = {
-    'input_template': inputTemplate,
+    'inputTemplate': inputTemplate,
     'datasetMeanStd': datasetMeanStd,
+    'constantFactor': constantFactor
 }
 
 def createSampler(params,samplerInfo=None, **kwargs):

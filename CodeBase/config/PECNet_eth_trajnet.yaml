@@ -1,42 +1,54 @@
-experiment_name: 'DoubleLSTM_sdd_longterm' 
+experiment_name: 'PECNet_eth_trajnet' 
 device: 'cpu'
 
 # MODEL
 model:
-  name: 'doubleLSTM'
+  name: 'PECNet'
   pretrain: ''
-  save_name: 'DoubleLSTM_sdd_longterm'
+  save_name: 'PECNet_eth'
   kwargs:
-    inp_size: 2 
-    out_size: 3
-    num_layers: 3
-    hidden_size: 512
+    enc_past_size: [512, 256]
+    enc_dest_size: [8, 16]
+    enc_latent_size: [8, 50]
+    dec_size: [1024, 512, 1024] 
+    predictor_size: [1024, 512, 256] 
+    fdim: 16 
+    zdim: 16
+    sigma: 1.3
+    past_length: 8 
+    future_length: 12 
+    verbose: True
+
+    
+    # obs_len: 8
+    # pred_len: 12  # in timesteps
     
 
   # loss
   loss_function: 
-    name: 'pairwise_distance_loss'
+    name: 'TrajCVAELoss'
     kwargs: {}
       # loss_scale: 1000  # factor to scale the loss
 #dataset
 
 dataset:
-  name: 'sdd' # imageTraj or trajectory(not support)
+  name: 'eth' # imageTraj or trajectory(not support)
   dataset_name: 'traj_dataset'
   num_goals: 1  # K_e
-  num_traj: 1  # K_a
-  train_data_path: '../dataset/SDD/train_longterm.pkl'
+  num_traj: 20  # K_a
+  train_data_path: '../dataset/eth/train'
   train_image_path: ''
-  val_data_path: '../dataset/SDD/test_longterm.pkl'
+  val_data_path: '../dataset/eth/test'
   val_image_path: ''
-  test_data_path: '../dataset/SDD/test_longterm.pkl'
+  test_data_path: '../dataset/eth/test'
   test_image_path: ''
 
   # data info
-  resize: 1.0
-  batch_size: 100
-  obs_len: 5
-  pred_len: 30
+  # data_scale: 170
+  resize: 170
+  batch_size: 512
+  obs_len: 8
+  pred_len: 12
   num_workers: 4 
   prefetch_factor: 2
   # load_to_gpu: True
@@ -53,22 +65,17 @@ dataset:
   #Sampler
   sampler: 
     name: 'custom' # custom or interval
-    trainkwargs: 
-      factor: 0.2 # each epoch sampling 20% trajectoies from dataset
+    trainkwargs: {}
       # num_interval: 25 # for one epoch, the max num_interval for sampling
     valkwargs: {}
       # num_interval: 9999999 # for one epoch, the max num_interval for sampling
-  collate_name: 'traj_collate'
+  collate_name: 'PECtraj_collate'
 
 optim:
-  name: 'Noam'
+  name: 'Adam'
   kwargs:
-    emb_size: 512
-    factor: 1.0
-    warmup: 10
-    lr: 0.0001
-  # learning_rate: 0.0001
-  num_epochs: 300
+    lr: 0.0003
+  num_epochs: 150
 
 # TEST
 
@@ -86,4 +93,4 @@ test:
 
 unfreeze: 150  # Unfreeze semantic segmentation model weights after this # of epochs
 viz_epoch: 10
-extra_info_name: 'datasetMeanStd'
+extra_info_name: 'constantFactor'

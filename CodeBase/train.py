@@ -43,6 +43,7 @@ def main(params):
     model = model_dict[params.model.name](**params.model.kwargs)
     if params.model.pretrain !='' and os.path.exists(params.model.pretrain):
         model.load(params.model.pretrain)
+    model.to(params.device)
     optimizer = createOptimizer(params,model)
     if params.optim.name =='Noam':
         optimizer.setWarmUpFactor(len(trainDataLoader))

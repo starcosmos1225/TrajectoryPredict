@@ -1,5 +1,5 @@
 experiment_name: 'ynetnogoal_sdd_trajnet' 
-device: 'cpu'
+device: 'cuda:0'
 
 # MODEL
 model:

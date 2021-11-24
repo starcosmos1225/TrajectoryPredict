@@ -25,3 +25,8 @@ def datasetMeanStd(params, dataLoaders):
     mean=torch.stack(means).mean(0).to(device)
     std=torch.stack(stds).mean(0).to(device)
     return mean,std
+
+def constantFactor(params, dataLoaders):
+    return {
+        'resize': params.dataset.resize
+    }

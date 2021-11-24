@@ -33,11 +33,11 @@ dataset:
   dataset_name: 'traj_dataset'
   num_goals: 1  # K_e
   num_traj: 1  # K_a
-  train_data_path: '../dataset/SDD/train_trajnet.pkl'
+  train_data_path: '../dataset/SDD/train_longterm.pkl'
   train_image_path: ''
-  val_data_path: '../dataset/SDD/test_trajnet.pkl'
+  val_data_path: '../dataset/SDD/test_longterm.pkl'
   val_image_path: ''
-  test_data_path: '../dataset/SDD/test_trajnet.pkl'
+  test_data_path: '../dataset/SDD/test_longterm.pkl'
   test_image_path: ''
 
   # data info
