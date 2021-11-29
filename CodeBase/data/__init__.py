@@ -1,8 +1,8 @@
 # from TrajDataloader import TrajDataloader
 from torch.utils.data import DataLoader
 from .sampler import CustomSampler, intervalSampler
-from .dataset.SceneDataset import SceneDataset
-from .dataset.TrajDataset import TrajDataset
+from .datasets.SceneDataset import SceneDataset
+from .datasets.TrajDataset import TrajDataset
 from .ExtraInfo import inputTemplate, datasetMeanStd, constantFactor
 from .collate_fn import scene_collate,traj_collate, PECtraj_collate
 datasetDict = {
