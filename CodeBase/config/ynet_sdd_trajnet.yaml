@@ -37,7 +37,6 @@ dataset:
   test_data_path: '../dataset/SDD/test_trajnet.pkl'
   test_image_path: '../dataset/SDD/test'
   
-
   # data info
   resize: 0.25
   batch_size: 4
@@ -53,6 +52,7 @@ dataset:
   waypoints: [11]
   # For semantic map
   segmentation_model_fp: segmentation_models/SDD_segmentation.pth
+  initTrajectoryModelFilePath: init_models/PECNet_sdd.pt
   semantic_classes: 6
   use_features_only: False  # If True the segmentation model only uses the
 
@@ -63,7 +63,6 @@ dataset:
       num_interval: 25 # for one epoch, the max num_interval for sampling
     valkwargs:
       num_interval: 9999999 # for one epoch, the max num_interval for sampling
-  #collate:
   collate_name: 'scene_collate'
 
 optim:
@@ -74,7 +73,6 @@ optim:
   num_epochs: 150
 
 # TEST
-
 test:
   # TTST
   use_TTST: False # the config is True

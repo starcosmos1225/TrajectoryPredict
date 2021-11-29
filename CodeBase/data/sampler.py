@@ -6,7 +6,7 @@ import copy
 
 class CustomSampler(Sampler):
     def __init__(self, params, dataInfo, factor=1.0):
-        self.len = dataInfo
+        self.len = dataInfo['length']
         self.sampleLen = int(self.len*factor)
         # print(self.len)
         # print(type(self.len))
@@ -23,8 +23,8 @@ class CustomSampler(Sampler):
 
 class intervalSampler(Sampler):
     def __init__(self, params, dataInfo, num_interval=99999999):
-        self.intervalList = dataInfo
-        self.len = dataInfo[-1]
+        self.intervalList = dataInfo['interval']
+        self.len = dataInfo['length']
         self.batchSize = params.batch_size
         self.num_interval = num_interval
         self.index = self.createIter()

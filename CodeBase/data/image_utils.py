@@ -1,8 +1,21 @@
+# from tqdm import cli
 import numpy as np
 import torch
 import cv2
 import torch.nn.functional as F
-import time
+# import time
+# import os
+from utils.utils import sampleIndex
+from torch import nn
+
+
+def softmax2d(x):
+	max = np.max(x, axis=1,keepdims=True)
+	e_x = np.exp(x - max)
+	sum = np.sum(e_x, axis=1, keepdims=True)
+	f_x = e_x / sum
+	return f_x
+
 def gkern(kernlen=31, nsig=4):
 	"""	creates gaussian kernel with side length l and a sigma of sig """
 	ax = np.linspace(-(kernlen - 1) / 2., (kernlen - 1) / 2., kernlen)
@@ -106,3 +119,33 @@ def image2world(image_coords, scene, homo_mat, resize):
 	traj_image2world = traj_image2world[:, :2]
 	traj_image2world = traj_image2world.view_as(image_coords)
 	return traj_image2world
+
+def mapToRelativeVector(image, traj, num_samples=512):
+	'''
+	for i:num_traj:
+		for j:squence:
+			for k:num_class:
+				mat[i,j,k] = samples(image[k],traj[i][0][j],num_samples)
+
+	image: num_class, H, W
+	traj: num_traj, squence, 2
+	return: num_traj, squence,num_class,  512, 2
+	  
+	'''
+
+	# image to sample: ->1,1,num_class, 512, 2
+	C,H,W = image.shape
+	zeros = torch.zeros_like(image)
+	clippedImage = torch.where(image<0.5,zeros,image).view(C,-1).numpy()
+	clippedImage = softmax2d(clippedImage)
+	samples = np.zeros((1,1,C, num_samples, 2))
+	for i in range(C):
+		m = clippedImage[i].reshape(H,W)
+		samples[0,0,i,:,0], samples[0,0,i,:,1] = sampleIndex(m,512)
+	samples = torch.from_numpy(samples).float()
+	# traj->repeat to -> num_traj,squence, num_class, 512, 2
+	tileTraj = traj.unsqueeze(2).unsqueeze(2).repeat(1,1,image.shape[0], num_samples,1)
+	# ralativeVector = sample - traj
+	relativeVector = samples - tileTraj
+	return relativeVector
+

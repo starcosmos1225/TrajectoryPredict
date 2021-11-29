@@ -48,18 +48,20 @@ class PECNet(nn.Module):
             print("Predictor architecture : {}".format(architecture(self.predictor)))
 
     # def forward(self, x, dest = None, device=torch.device('cpu')):
-    def forward(self, obs, otherInp, extraInp, params):
+    def forward(self, obs, otherInp=None, extraInp=None, params=None):
 
         # provide destination iff training
         # assert model.training
         # obs: (b,s,2)
         # pred: (b, pred, 2)
         obsRelate = (obs - obs[:,:1,:])
-        pred = otherInp[0]
-        pred = (pred - obs[:,:1,:])
+        if self.training:
+            pred = otherInp[0]
+            pred = (pred - obs[:,:1,:])
+            dest = pred[:,-1,:]
         obsRelate = obsRelate.view(obsRelate.shape[0], -1)
         # pred = pred.view(pred.shape[0], -1)
-        dest = pred[:,-1,:]
+        
         # future = pred[:,:-1,:]
         device = params.device
 
@@ -124,21 +126,9 @@ class PECNet(nn.Module):
             pred_future = self.predictor(prediction_features)
             predTraj = pred_future.view(params.dataset.num_traj,-1,params.dataset.pred_len-1,2)
             predTraj = torch.cat((predTraj,generated_dest.unsqueeze(2)),dim=2)
-            print(predTraj.shape)
-            print(obs.shape)
+
             predTraj = predTraj + obs.unsqueeze(0)[:,:,:1,:]
             # print(decoder_input.shape)
             # print(predTraj.shape)
             # t=input()
-        return predTraj, None
-
-    # separated for forward to let choose the best destination
-    # def predict(self, past, generated_dest, mask, initial_pos):
-    def predict(self, past, generated_dest):
-        ftraj = self.encoder_past(past)
-        generated_dest_features = self.encoder_dest(generated_dest)
-
-        prediction_features = torch.cat((ftraj, generated_dest_features), dim = 1)
-
-        interpolated_future = self.predictor(prediction_features)
-        return interpolated_future
+        return predTraj

@@ -77,25 +77,48 @@ class TrajCVAELoss:
         self.lossFunc = F.mse_loss
 
     def __call__(self,pred,gt, otherInp, otherOut, extraInfo):
-        trajLoss = self.lossFunc(pred, gt)
-        goal,mean, logVar,futureTraj = otherOut['goal'], \
-                                  otherOut['mean'], \
+        
+        if 'modelname' in extraInfo and extraInfo['modelname'] == 'PECNet':
+            gt, obs = otherInp[0], otherInp[1]
+            gt = gt-obs[:,:1,:]
+        else:
+            # trajLoss = self.lossFunc(pred, gt)
+            obsVel,gtVel = otherInp[0], otherInp[2]
+            mean, std = extraInfo
+            gt = (gtVel - mean) / std
+            
+        
+        
+        
+        if 'goal' in otherOut:
+            goal = otherOut['goal']
+            gtGoal = gt[:,-1,:]
+            gtFutureTraj = gt[:,:-1,:].view(gt.shape[0],-1)
+            reconstructLoss = self.lossFunc(goal,gtGoal)
+        else:
+            gtFutureTraj = gt.view(gt.shape[0],-1)
+            reconstructLoss = 0.0
+        mean, logVar,futureTraj = otherOut['mean'], \
                                   otherOut['var'], \
                                   otherOut['futureTraj']
-        obs = otherInp[1]
-        gt = gt - obs[:,:1,:]
-        gtGoal = gt[:,-1,:]
+        
+        # predVel = otherInp[1]
+        # gtGoal =  predVel.cumsum(dim=1)[:,-1,:]
+        # print(gtGoal.shape)
+        # t=input()  
+        # print(gtFutureTraj.shape)
+        # print(futureTraj.shape)
+        # t=input()
 
-        gtFutureTraj = gt[:,:-1,:].view(gt.shape[0],-1)
-        reconsturctLoss = self.lossFunc(goal,gtGoal)
+        futureTraj = futureTraj.view(futureTraj.shape[0],-1)
         trajLoss = self.lossFunc(gtFutureTraj, futureTraj)
         kldLoss = -0.5 * torch.sum(1 + logVar - mean.pow(2) - logVar.exp())
-        # print(reconsturctLoss)
+        # print(reconstructLoss)
         # print(trajLoss)
         # print(kldLoss)
         # t=input()
         return trajLoss*self.trajWeight + kldLoss* self.kldWeight \
-        + reconsturctLoss* self.reconstructWeight
+        + reconstructLoss* self.reconstructWeight
     
     # def calculate_loss(self,)
 

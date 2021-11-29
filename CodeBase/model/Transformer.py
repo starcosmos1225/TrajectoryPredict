@@ -78,7 +78,7 @@ class IndividualTF(nn.Module):
                 outVelocity = self.model.generator(self.model(inp,decInp,srcAtt,trgAtt))
                 decInp = torch.cat((decInp, outVelocity[:, -1:, :]), 1)
             pred = (decInp[:, 1:, 0:2] * std + mean).cumsum(dim=1) + obs[:,-1:,:]
-            return pred, None
+            return pred
 
 
 class Generator(nn.Module):

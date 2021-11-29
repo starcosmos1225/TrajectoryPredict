@@ -50,14 +50,16 @@ def torch_multivariate_gaussian_heatmap(coordinates, H, W, dist, sigma_factor, r
 	kernel = torch.exp(-0.5 * kernel)
 	return kernel / kernel.sum()
 
+def sampleIndex(mat, N):
+    xy = np.random.choice(range(mat.size), size=N, p=mat.flatten())
+    return np.unravel_index(xy, mat.shape)
+
 def choiceIndex(mat, index, outMat,N):
 	# mat, index, outMat = inf
 	pred = index
 	for y in range(pred):
 		m = mat[y]
-		xy = np.random.choice(range(m.size),size=N,p=m.flatten())
-		# print(xy.shape)
-		outMat[:,y,0], outMat[:,y,1] = np.unravel_index(xy, m.shape)
+		outMat[:,y,0], outMat[:,y,1] = sampleIndex(m, N)
 
 
 def samplingTrajFromHeatMap(mat,N):

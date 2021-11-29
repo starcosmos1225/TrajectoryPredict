@@ -37,18 +37,28 @@ def PECtraj_collate(batch):
 
 
 def scene_collate(batch):
-	obs = []
-	gt = []
-	observedMap = []
-	gtFutureMap = []
-	gtWaypointMap = []
-	semanticMap = []
-	for _batch in batch:
-		obs.append(_batch[0])
-		gt.append(_batch[1])
-		observedMap.append(_batch[2])
-		gtFutureMap.append(_batch[3])
-		gtWaypointMap.append(_batch[4])
-		semanticMap.append(_batch[5])
-	return torch.stack(obs),torch.stack(gt),\
-		[torch.stack(observedMap),torch.stack(gtFutureMap), torch.stack(gtWaypointMap), torch.stack(semanticMap)]
+    obs = []
+    gt = []
+    observedMap = []
+    gtFutureMap = []
+    gtWaypointMap = []
+    semanticMap = []
+    initTraj = []
+    for _batch in batch:
+        obs.append(_batch['obs'])
+        gt.append(_batch['pred'])
+        observedMap.append(_batch['observedMap'])
+        gtFutureMap.append(_batch['gtFutureMap'])
+        gtWaypointMap.append(_batch['gtWaypointMap'])
+        if 'semanticMap' in _batch:
+            semanticMap.append(_batch['semanticMap'])
+        if 'initTraj' in _batch:
+            initTraj.append(_batch['initTraj'])
+    otherInfo = [torch.stack(observedMap), torch.stack(gtFutureMap), 
+                torch.stack(gtWaypointMap)]
+    if len(semanticMap)>0:
+        otherInfo.append(torch.stack(semanticMap))
+    if len(initTraj) >0:
+        otherInfo.append(torch.stack(initTraj))
+    return torch.stack(obs),torch.stack(gt),otherInfo
+    

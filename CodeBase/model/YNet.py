@@ -315,7 +315,7 @@ class YNetTorch(nn.Module):
                 futureSamples.append(predTraj)
 
             futureSamples = torch.stack(futureSamples)
-            return futureSamples, (waypointSamples)
+            return futureSamples
 
 
 

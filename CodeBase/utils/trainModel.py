@@ -38,10 +38,13 @@ def trainModel(params, trainDataLoader,valDataLoader,model,optimizer, lossFuncti
 
                         pred, otherOut = model(obs,otherInp,extraInfo, params)
                         # print(pred.shape)
-                        assert len(pred.shape)==3 and len(gt.shape)==3, "Training model prediction trajectoies' shape must be (batch, squence, position)"
+                        assert (len(pred.shape)==3 or len(pred.shape)==4) and len(gt.shape)==3, "Training model prediction trajectoies' shape must be (batch, squence, position) \
+                         or (num_traj, batch_size, squence, position)"
                         # logger.info("predVel info:{}".format(otherOut[0].shape))
                         # logger.info(otherOut[0])
-                        loss = lossFunction(pred, gt, otherInp, otherOut,extraInfo)
+                        if len(pred.shape) ==3:
+                                        pred = pred.unsqueeze(0)
+                        loss = lossFunction(pred, gt.unsqueeze(0), otherInp, otherOut,extraInfo)
                         # logger.info("forward time:{}".format(time()-start))
                         # start = time()
 
@@ -66,9 +69,12 @@ def trainModel(params, trainDataLoader,valDataLoader,model,optimizer, lossFuncti
                                 # logger.info("pred:{}".format(pred[:,-1:]))
                                 # logger.info(((((gt[:, -1:] - pred[:,-1:]) / params.dataset.resize) ** 2).sum(dim=2) ** 0.5).mean(dim=0))
                                 # t=input()
-                                train_ADE.append(((((gt - pred) / params.dataset.resize) ** 2).sum(dim=2) ** 0.5).mean(dim=0))
+                                
+                                train_FDE.append(((((gt[:, -1:].unsqueeze(0) - pred[:, :,-1:,:]) / params.dataset.resize) ** 2).sum(dim=3) ** 0.5).min(dim=0)[0])
+                                train_ADE.append(((((gt.unsqueeze(0) - pred) / params.dataset.resize) ** 2).sum(dim=3) ** 0.5).mean(dim=2).min(dim=0)[0])
+                                # train_ADE.a/ppend(((((gt - pred) / params.dataset.resize) ** 2).sum(dim=2) ** 0.5).mean(dim=0))
                                 # train_FDE.append(((((gt[:, -1:] - predGoal[:, -1:]) / params.dataset.resize) ** 2).sum(dim=2) ** 0.5).mean(dim=1))
-                                train_FDE.append(((((gt[:, -1:] - pred[:,-1:]) / params.dataset.resize) ** 2).sum(dim=2) ** 0.5).mean(dim=0))
+                                # train_FDE.append(((((gt[:, -1:] - pred[:,-1:]) / params.dataset.resize) ** 2).sum(dim=2) ** 0.5).mean(dim=0))
                 train_loss = train_loss / counter
                 train_ADE = torch.cat(train_ADE).mean()
                 train_FDE = torch.cat(train_FDE).mean()

@@ -95,7 +95,7 @@ class resnetTraj(nn.Module):
             # y = (y+1.0)*H/2 
             pred[:,:,0] = (pred[:,:,0] + 1.0)*W*0.5
             pred[:,:,1] = (pred[:,:,1] + 1.0)*H*0.5
-            return pred, None
+            return pred
     
     def load(self, path):
         print(self.load_state_dict(torch.load(path)))

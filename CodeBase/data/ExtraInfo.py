@@ -28,5 +28,6 @@ def datasetMeanStd(params, dataLoaders):
 
 def constantFactor(params, dataLoaders):
     return {
-        'resize': params.dataset.resize
+        'resize': params.dataset.resize,
+        'modelname': params.model.name
     }

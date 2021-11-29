@@ -1,8 +1,11 @@
 from torch.optim import Adam
 from .Noam import Noam
+from .sgd_agc import SGD_AGC
+
 optimizer_dict = {
     'Adam': Adam,
-    'Noam': Noam
+    'Noam': Noam,
+    'SGD_AGC': SGD_AGC,
 }
 
 

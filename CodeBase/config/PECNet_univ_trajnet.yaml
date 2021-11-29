@@ -1,0 +1,96 @@
+experiment_name: 'PECNet_univ_trajnet' 
+device: 'cpu'
+
+# MODEL
+model:
+  name: 'PECNet'
+  pretrain: ''
+  save_name: 'PECNet_univ'
+  kwargs:
+    enc_past_size: [512, 256]
+    enc_dest_size: [8, 16]
+    enc_latent_size: [8, 50]
+    dec_size: [1024, 512, 1024] 
+    predictor_size: [1024, 512, 256] 
+    fdim: 16 
+    zdim: 16
+    sigma: 1.3
+    past_length: 8 
+    future_length: 12 
+    verbose: True
+
+    
+    # obs_len: 8
+    # pred_len: 12  # in timesteps
+    
+
+  # loss
+  loss_function: 
+    name: 'TrajCVAELoss'
+    kwargs: {}
+      # loss_scale: 1000  # factor to scale the loss
+#dataset
+
+dataset:
+  name: 'univ' # imageTraj or trajectory(not support)
+  dataset_name: 'traj_dataset'
+  num_goals: 1  # K_e
+  num_traj: 20  # K_a
+  train_data_path: '../dataset/univ/train'
+  train_image_path: ''
+  val_data_path: '../dataset/univ/test'
+  val_image_path: ''
+  test_data_path: '../dataset/univ/test'
+  test_image_path: ''
+
+  # data info
+  # data_scale: 170
+  resize: 170
+  batch_size: 256
+  obs_len: 8
+  pred_len: 12
+  num_workers: 4 
+  prefetch_factor: 2
+  # load_to_gpu: True
+  # Ynet
+  division_factor: 32 # use in Ynet the division factor must be 2^(len(encoder_channels))
+  kernlen: 31  # (image) size of Gaussian kernel used for ground-truth Gaussian heatmap
+  nsig: 4  # sigma of Gaussian kernel used for ground-truth Gaussian heatmap
+  waypoints: ''
+  # For semantic map
+  segmentation_model_fp: ''
+  semantic_classes: ''
+  use_features_only: False  # If True the segmentation model only uses the
+
+  #Sampler
+  sampler: 
+    name: 'custom' # custom or interval
+    trainkwargs: {}
+      # num_interval: 25 # for one epoch, the max num_interval for sampling
+    valkwargs: {}
+      # num_interval: 9999999 # for one epoch, the max num_interval for sampling
+  collate_name: 'PECtraj_collate'
+
+optim:
+  name: 'Adam'
+  kwargs:
+    lr: 0.0003
+  num_epochs: 100
+
+# TEST
+
+test:
+  # TTST
+  use_TTST: False
+  rel_threshold: 0.01
+  # CWS
+  use_CWS: False
+  CWS_params: None
+
+  eval_step: 10
+  temperature: 1.0
+  round: 1
+
+unfreeze: 150  # Unfreeze semantic segmentation model weights after this # of epochs
+viz_epoch: 10
+extra_info_name: 'constantFactor'
