@@ -5,11 +5,19 @@ import numpy as np
 import torch
 from torch import nn
 from ..image_utils import getPatch,createGaussianHeatmapTemplate, \
-	 createDistMat, mapToRelativeVector, preprocessImageForSegmentation, pad, resize
+	 createDistMat, mapToRelativeVector, preprocessImageForSegmentation, \
+		  pad, resize, nearestRelativeVector, croplocalImage
 from ..preprocessing import augmentData, createImagesDict
 import pandas as pd
 import os
 from easydict import EasyDict
+from multiprocessing import Process
+from multiprocessing import Manager
+import time
+import copy
+
+
+
 
 
 class SceneDataset(Dataset):
@@ -58,11 +66,10 @@ class SceneDataset(Dataset):
         # Load train images and augment train data and images
 		if mode =='train':
 			data, images = augmentData(data, image_path=imagePath, imageFile=imageFileName,
-                                                                                  segMask=segMask)
+                                                                         segMask=segMask)
 		else:
         	# Load val scene images
 			images = createImagesDict(data, imagePath=imagePath, imageFile=imageFileName)
-
         # Preprocess images, in particular resize, pad and normalize as semantic segmentation backbone requires
 		resize(images, factor=params.resize, segMask=segMask)
 		pad(images, divisionFactor=params.division_factor)  # make sure that image shape is divisible by 32, for UNet segmentation
@@ -75,7 +82,7 @@ class SceneDataset(Dataset):
 
 		gtTemplate = createGaussianHeatmapTemplate(size=size, kernlen=params.kernlen, nsig=params.nsig, normalize=False)
 		gtTemplate = torch.Tensor(gtTemplate)
-		
+		# print("dataset mid",flush=True)
 		obsLength, predLength = params.obs_len, params.pred_len
 		totalLength = obsLength + predLength
 		# Load segmentation model
@@ -103,10 +110,14 @@ class SceneDataset(Dataset):
 		self.sceneImage = {}
 		self.initTrajModel = initTrajModel
 		self.num_traj = params.num_traj
+		self.num_points = params.num_points
+		self.env_type = params.env_type
+		if self.env_type =='local':
+			self.crop_size = params.crop_size
 		if self.initTrajModel is not None:
 			self.initTrajModel.eval()
-		if semanticModel is not None:
-				semanticModel.eval()
+		
+		# print("dataset end",flush=True)
 		for key in tqdm(images,desc='semantic image'):
 			self.sceneImage[key] = images[key].unsqueeze(0)
 			if semanticModel is not None:
@@ -114,10 +125,94 @@ class SceneDataset(Dataset):
 				semanticModel.eval()
 				self.sceneImage[key] = semanticModel.predict(self.sceneImage[key])
 		
+		if self.initTrajModel is not None:
+				
+				_,initmodelname = os.path.split(params.initTrajectoryModelFilePath)
+				initmodelname,_ = os.path.splitext(initmodelname)
+				_,dataname = os.path.split(dataPath)
+				dataname,_ = os.path.splitext(dataname)
+				modename = 'test' if mode!='train' else mode
+				# relativeVectorName = os.path.join('temp','{}_{}_{}_{}.npy'.format('rv',initmodelname,dataname,modename))
+				initTrajName = os.path.join('temp','{}_{}_{}_{}.npy'.format('traj',initmodelname,dataname,modename))
+				# if os.path.exists(relativeVectorName):
+				# 	self.relativeVectorList = np.load(relativeVectorName)
+				# else:
+				# 	self.relativeVectorList = None
+				if os.path.exists(initTrajName):
+					self.initTrajList = np.load(initTrajName)
+					# self.relativeVectorList = np.load(relativeVectorName)
+				else:
+					length = len(self.trajectories)
+					# self.manager = Manager
 
+					self.initTrajList = [0 for _ in range(length)]
+					# self.relativeVectorList = self.manager().list()
+					# for _ in range(length):
+					# 	# self.initTrajList.append(0)
+					# 	self.relativeVectorList.append(0)
+					traj_params = {
+						'device': 'cpu',
+						'num_points': params.num_points,
+						'dataset':{
+							'pred_len': self.predLength,
+							'num_traj':  self.num_traj
+						}
+					}
+					traj_params = EasyDict(traj_params)
+					for idx in tqdm(range(length),desc='cal init traj'):
+						obs = self.trajectories[idx,:self.obsLength,:]
+						obs = torch.from_numpy(obs)
+						with torch.no_grad():
+							initTraj = self.initTrajModel(obs.unsqueeze(0),params=traj_params)
+						self.initTrajList[idx] = initTraj.squeeze(1).detach().numpy()
+					# index = np.arange(length)
+					# num_process = 8
+					# size = length // num_process
+					# threads = []
+					
+					# for i in range(num_process):
+					# 	if i!=num_process-1:
+					# 		index_i = index[i*size: (i+1)*size]
+					# 	else:
+					# 		index_i = index[i*size:]
+						# t_model = copy.deepcopy(initTrajModel)
+					# 	t = Process(target=self.computeRelativeVector,
+					# 				args=(
+					# 					  traj_params,
+					# 					  index_i,
+					# 				   	  i))
+					# 	t.start()
+					# 	threads.append(t)
+					# for t in threads:
+					# 	t.join()
+
+					# self.relativeVectorList = np.asarray(self.relativeVectorList)
+					self.initTrajList = np.array(self.initTrajList)
+
+					# np.save(relativeVectorName, self.relativeVectorList)
+					np.save(initTrajName, self.initTrajList)
+					
+				
+	
 	def __len__(self):
 		return len(self.trajectories)
 
+	def computeRelativeVector(self,
+						  params, 
+						  index,
+						  rank):
+		if rank ==0:
+			pbar = tqdm(index,desc='making init predict trajectories')
+		else:
+			pbar = index
+		for idx in pbar:
+			scene = self.scene_list[idx]
+			_, _, H, W = self.sceneImage[scene].shape
+			semanticMap = self.sceneImage[scene].view(-1,H, W)
+			initTraj = self.initTrajList[idx]
+			nearestVector = nearestRelativeVector(semanticMap.detach().numpy(), initTraj, params.num_points)
+			self.relativeVectorList[idx] = nearestVector
+			
 	def __getitem__(self, idx):
 		obsLength = self.obsLength
 		trajectory = self.trajectories[idx]
@@ -155,18 +250,21 @@ class SceneDataset(Dataset):
 			'semanticMap': semanticMap
 		}
 		if self.initTrajModel is not None:
-			params = {
-				'device': 'cpu',
-				'dataset':{
-					'pred_len': self.predLength,
-					'num_traj':  self.num_traj
-				}
-			}
-			params = EasyDict(params)
-
-			initTraj = self.initTrajModel(info['obs'].unsqueeze(0),[info['pred'].unsqueeze(0)],params=params)
-			otherinfo['semanticMap'] = mapToRelativeVector(semanticMap.detach(), initTraj.squeeze(1).detach())
-			otherinfo['initTraj'] = initTraj.squeeze(1).detach()
+			# print(self.relativeVectorList.shape)
+			# print(self.relativeVectorList[idx].shape)
+			# print(self.relativeVectorList)
+			
+			
+			initTraj = self.initTrajList[idx]
+			# if self.relativeVectorList is not None:
+			# 	nearestVector = self.relativeVectorList[idx]
+			# else:
+			if self.env_type == 'rv':
+				envInfo = nearestRelativeVector(semanticMap.detach().numpy(), initTraj, self.num_points)
+			elif self.env_type == 'local':
+				envInfo = croplocalImage(semanticMap.detach().numpy(), initTraj,self.crop_size)
+			otherinfo['initTraj'] = torch.from_numpy(self.initTrajList[idx]).float()
+			otherinfo['semanticMap'] = torch.from_numpy(envInfo).float()
 		res = info.copy()
 		res.update(otherinfo)
 		# print("device:{}".format(self.device))

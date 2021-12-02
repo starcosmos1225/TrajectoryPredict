@@ -44,3 +44,67 @@ class MLP(nn.Module):
             elif self.sigmoid:
                 x = self.sigmoid(x)
         return x
+
+# ResMLP(inp=num_classes*num_samples*2*pred_len, out=pred_len*2,scale=0.25,activate='ReLU',bn=True)
+activate_op = {
+    'ReLU': nn.ReLU()
+}
+class ResMLPBlock(nn.Module):
+
+    def __init__(self, inp, out, middle, activate):
+        super(ResMLPBlock, self).__init__()
+        self.activate = activate
+        self.block1 =  nn.Sequential(
+            nn.Linear(inp, middle),
+            nn.Linear(middle, inp),
+            # nn.BatchNorm1d(inp),
+            self.activate
+        )
+        self.block2 = nn.Linear(inp, out)
+        self.bn = nn.BatchNorm1d(out)        
+
+    def forward(self, x):
+        res = x
+        mid = self.block1(x)
+        out = mid + res
+        out = self.block2(out)
+        # out = self.bn(out)
+        out = self.activate(out)
+        return out
+
+
+class ResMLP(nn.Module):
+    def __init__(self, inp, out,layers=[1024,512,256,128],scale=0.5, activate="ReLU",bn=True):
+        super(ResMLP, self).__init__()
+        self.inplane = inp
+        self.activate = activate_op[activate]
+
+        self.layerInp = nn.Linear(inp, layers[0]*2)
+        self.maxpool = nn.MaxPool1d(2)
+        self.inplane = layers[0]
+        self.bn1 = nn.BatchNorm1d(layers[0]*2)
+        self.layer1 = self._makeLayer(layers[0],scale)
+        self.layer2 = self._makeLayer(layers[1],scale)
+        self.layer3 = self._makeLayer(layers[2],scale)
+        self.layer4 = self._makeLayer(layers[3],scale)
+        self.out = nn.Linear(layers[3], out)
+    
+    def _makeLayer(self, out, scale):
+        inp = self.inplane
+        self.inplane = out
+        middle = int(inp * scale)
+        return ResMLPBlock(inp, out, middle, self.activate)
+
+    def forward(self, x):
+        # print(x.shape)
+        x = self.layerInp(x)
+        # print(x.shape)
+        # x = self.bn1(x)
+        x = self.maxpool(x)
+
+        x = self.layer1(x)
+        x = self.layer2(x)
+        x = self.layer3(x)
+        x = self.layer4(x)
+        out = self.out(x)
+        return out

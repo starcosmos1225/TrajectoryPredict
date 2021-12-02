@@ -49,7 +49,7 @@ def trainModel(params, trainDataLoader,valDataLoader,model,optimizer, lossFuncti
                         # start = time()
 
                         optimizer.zero_grad()
-                        loss.backward()
+                        # loss.backward()
                         optimizer.step()
                         # logger.info("backward time:{}".format(time()-start))
                         # start = time()

@@ -1,6 +1,7 @@
 import yaml
 from easydict import EasyDict
 import os
+# os.environ['OMP_NUM_THREADS'] = '10'
 import logging
 from utils.evalModel import evalModel
 from data import createDataLoader, createExtraInfo
@@ -11,6 +12,8 @@ import json
 from model import model_dict
 import torch
 
+# os.environ['OPENBLAS_NUM_THREADS'] = 10
+# os.environ['MKL_NUM_THREADS'] = 10
 
 warnings.filterwarnings("ignore", category=SourceChangeWarning)
 
@@ -41,9 +44,6 @@ def main(params):
     model = model_dict[params.model.name](**params.model.kwargs)
     if params.model.pretrain !='' and os.path.exists(params.model.pretrain):
         model.load_state_dict(torch.load(params.model.pretrain))
-    # torch.save(model,"init_models/PECNet.pt")
-    # s_model = torch.load("init_models/PECNet.pt")
-    # s_model.eval()
     model.to(params.device)
     extraInfo = createExtraInfo(params,[testDataLoader])
     valADE, valFDE = evalModel(params, testDataLoader, model, extraInfo,logger,params.test.round)

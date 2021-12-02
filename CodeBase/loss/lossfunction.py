@@ -67,7 +67,26 @@ class TrajMSELoss:
         self.lossFunc = F.mse_loss
     
     def __call__(self,pred,gt,otherInp, otherOut,extraInfo):
+        assert gt.shape[0] ==1
+        if pred.shape[0] != gt.shape[0]:
+            gt = gt.repeat(pred.shape[0],1,1,1)
         return self.lossFunc(pred, gt)
+
+class VarietyLoss:
+    def __init__(self):
+        self.lossFunc = F.mse_loss
+    
+    def __call__(self,pred,gt,otherInp,otherOut,extraInfo):
+        assert gt.shape[0] ==1
+        predLength = pred.shape[2]
+        dist2 = torch.sum((pred.detach()-gt.detach())**2, dim=-1,keepdim=True)
+        dist2 = torch.sum(dist2, dim=-2,keepdim=True)
+        index = torch.argmin(dist2,dim=0,keepdim=True)
+        index = index.repeat(1,1,predLength,2)
+        bestTraj = pred.gather(0,index)
+        
+        return self.lossFunc(bestTraj,gt)
+        
 
 class TrajCVAELoss:
     def __init__(self, traj_weight=1.0, kld_weight=1.0, rcl_weight=1.0):
@@ -86,10 +105,7 @@ class TrajCVAELoss:
             obsVel,gtVel = otherInp[0], otherInp[2]
             mean, std = extraInfo
             gt = (gtVel - mean) / std
-            
-        
-        
-        
+                 
         if 'goal' in otherOut:
             goal = otherOut['goal']
             gtGoal = gt[:,-1,:]
@@ -102,21 +118,11 @@ class TrajCVAELoss:
                                   otherOut['var'], \
                                   otherOut['futureTraj']
         
-        # predVel = otherInp[1]
-        # gtGoal =  predVel.cumsum(dim=1)[:,-1,:]
-        # print(gtGoal.shape)
-        # t=input()  
-        # print(gtFutureTraj.shape)
-        # print(futureTraj.shape)
-        # t=input()
 
         futureTraj = futureTraj.view(futureTraj.shape[0],-1)
         trajLoss = self.lossFunc(gtFutureTraj, futureTraj)
         kldLoss = -0.5 * torch.sum(1 + logVar - mean.pow(2) - logVar.exp())
-        # print(reconstructLoss)
-        # print(trajLoss)
-        # print(kldLoss)
-        # t=input()
+
         return trajLoss*self.trajWeight + kldLoss* self.kldWeight \
         + reconstructLoss* self.reconstructWeight
     

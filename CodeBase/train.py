@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 
 def main(params):
-    torch.autograd.set_detect_anomaly(True)
+    # torch.autograd.set_detect_anomaly(True)
     trainDataLoader, valDataLoader = createDataLoader(params.dataset)
     # for idx, infos in enumerate(trainDataLoader):
     #     obs, gt,  otherInp = infos

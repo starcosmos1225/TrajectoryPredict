@@ -6,7 +6,8 @@ from .LSTM import SingleLSTM, DoubleLSTM,DoubleCVAELSTM, DoubleLSTMPure,  \
 from .resTraj import resnetTraj
 from .PECNet import PECNet
 from .NonSquence import CVAEDoubleMLP
-from .RVNet import RVNet
+from .RVNet import RVNet, RVNetResdual, RVNetTransformer,RVNetConv1d
+from .localNet import LocalNet
 model_dict = {
     'ynet': YNet,
     'ynetnoGoal': YNetNoGoal,
@@ -21,6 +22,9 @@ model_dict = {
     'CVAEDoubleMLP': CVAEDoubleMLP,
     'resnetTraj': resnetTraj,
     'PECNet': PECNet,
-    'RVNet': RVNet
-    
+    'RVNet': RVNet,
+    'RVNetResdual': RVNetResdual,
+    'RVNetTransformer': RVNetTransformer,
+    'RVNetConv1d': RVNetConv1d,
+    'LocalNet': LocalNet
 }

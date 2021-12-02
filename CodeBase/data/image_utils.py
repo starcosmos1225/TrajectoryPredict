@@ -3,9 +3,9 @@ import numpy as np
 import torch
 import cv2
 import torch.nn.functional as F
-# import time
+import time
 # import os
-from utils.utils import sampleIndex
+from utils.utils import sampleIndex, nearestKindex
 from torch import nn
 
 
@@ -72,12 +72,12 @@ def preprocessImageForSegmentation(images, encoder='resnet101', encoderWeights='
 	import segmentation_models_pytorch as smp
 
 	preprocessingFn = smp.encoders.get_preprocessing_fn(encoder, encoderWeights)
-
 	for key, im in images.items():
 		if segMask:
 			im = [(im == v) for v in range(classes)]
 			im = np.stack(im, axis=-1)  # .astype('int16')
 		else:
+			# print(key)
 			im = preprocessingFn(im)
 		im = im.transpose(2, 0, 1).astype('float32')
 		im = torch.Tensor(im)
@@ -120,12 +120,113 @@ def image2world(image_coords, scene, homo_mat, resize):
 	traj_image2world = traj_image2world.view_as(image_coords)
 	return traj_image2world
 
+def to_shape(a, shape):
+	'''
+	a: numpy B,H,W
+	shape: tuple new_H, new_W
+	'''
+	y_, x_ = shape
+	_, y, x = a.shape
+	y_pad = (y_-y)
+	x_pad = (x_-x)
+	return np.pad(a,((0,0),(y_pad//2, y_pad//2 + y_pad%2), 
+                     (x_pad//2, x_pad//2 + x_pad%2)),
+                  mode = 'constant')
+
+def croplocalImage(image, traj, size):
+	'''
+	image: num_class, H, W
+	traj: num_traj, squence, 2
+	size: int
+	return: num_traj, squence, num_class, size,size
+	'''
+	num_class,H,W = image.shape
+	num_traj, squence,_ = traj.shape
+	cropImage = np.zeros((num_traj, squence,num_class,size,size))
+	R = size//2
+	for i in range(num_traj):
+		for j in range(squence):
+			x,y = traj[i,j,0], traj[i,j,1]
+			l,t= int(x-R),int(y-R)
+			l = max(0,l)
+			t = max(0,t)
+			r = l+size
+			b = t+size
+			r = min(H,r)
+			b = min(W,b)
+			im = image[:,t:b,l:r]
+			if im.shape[1]!=size or im.shape[2]!=size:
+				try:
+					im = to_shape(im,(size,size))
+				except ValueError as e:
+					print(e)
+					print(im.shape)
+			cropImage[i,j] = im
+	return cropImage
+
+
+
+def nearestRelativeVector(image, traj, num_samples=512):
+	'''
+	for i: num_traj
+		for j: squence
+			for k: num_class:
+				mat[i,j,k] = nearest(image[k], traj[i][j],num_samples)
+	image: num_class, H, W
+	traj: num_traj, squence, 2
+	return: num_traj, squence, num_class, 512,2
+	'''
+	# start = time.time()
+	C,H,W = image.shape
+	numTraj, numSquence,_ = traj.shape
+	zeros = np.zeros_like(image)
+	# print(image.max())
+	# t=input()
+	clippedImage = np.where(image<0.95,zeros,image)
+	rv = []
+	# nonzeroVector = []
+	# maxlength = 0
+	# print("clipe time:{}".format(time.time()-start))
+	# start=time.time()
+	for i in range(C):
+		nonzero = np.transpose(clippedImage[i].nonzero())
+		if nonzero.shape[0]>20000:
+			idx = np.random.randint(nonzero.shape[0],size=20000)
+			nonzero = nonzero[idx,:]
+		# print(nonzero.shape)
+		# t=input()
+		# maxlength = max(nonzero.shape[0],maxlength)
+		# print(nonzero.shape)
+		
+		if nonzero.shape[0] == 0:
+			nonzero = np.ones((num_samples+1,2))*4098
+		else:
+			if nonzero.shape[0] < num_samples:
+				nonzero = np.repeat(nonzero,num_samples//nonzero.shape[0]+1,axis=0)
+		# nonzeroVector.append(nonzero)
+	# for i in range(C):
+	# 	nonzeroVector[i] = np.pad(nonzeroVector[i],
+	# 								((0,maxlength-nonzeroVector[i].shape[0]),(0,0)),
+	# 								'constant',
+	# 								constant_values=4098)
+	# nonzeroVector = np.asarray(nonzeroVector)
+	# print(nonzeroVector.shape)
+		# print("non zero time:{}".format(time.time()-start))
+		# start=time.time()
+		nearestVector = nearestKindex(nonzero, traj, K=num_samples)
+		rv.append(nearestVector)
+		# print("nearest time:{}".format(time.time()-start))
+		# start=time.time()
+	# 	rv.append(nearestVector)
+	rv = np.array(rv).transpose(1,2,0,3,4)
+	return rv
+
 def mapToRelativeVector(image, traj, num_samples=512):
 	'''
 	for i:num_traj:
 		for j:squence:
 			for k:num_class:
-				mat[i,j,k] = samples(image[k],traj[i][0][j],num_samples)
+				mat[i,j,k] = samples(image[k],traj[i][j],num_samples)
 
 	image: num_class, H, W
 	traj: num_traj, squence, 2
@@ -149,3 +250,7 @@ def mapToRelativeVector(image, traj, num_samples=512):
 	relativeVector = samples - tileTraj
 	return relativeVector
 
+if __name__=='__main__':
+	a = np.ones((6,200,240))
+	n = to_shape(a,(255,255))
+	print(n.shape)

@@ -2,6 +2,7 @@
 import torch
 from multiprocessing import Process
 import numpy as np
+import time
 
 def sampling(probability_map, num_samples, rel_threshold=None, replacement=False):
 	# new view that has shape=[batch*timestep, H*W]
@@ -50,8 +51,62 @@ def torch_multivariate_gaussian_heatmap(coordinates, H, W, dist, sigma_factor, r
 	kernel = torch.exp(-0.5 * kernel)
 	return kernel / kernel.sum()
 
+
+def nearestKindex(positions, origin, K):
+	'''
+	positions: n, 2
+	origin: numtraj, squence,2
+	K: nums of nearest points int
+	return: numtraj, squence, K, 2
+	'''
+	# origin -> numtraj, squence , n,2
+	# dist = (positions-origin)**2.sum(-1)**0.5
+	# start = time.time()
+	n = positions.shape[0]
+	numTraj, numSquence,_ = origin.shape
+	
+	o = np.expand_dims(origin,axis=2)
+	o = o.repeat(n,axis=2)
+	# o = np.expand_dims(o,axis=2)
+	# o = o.repeat(class_num,axis=2)
+	# print(o.shape)
+	# t=input()
+	rv = positions - o
+	# print("expand time:{}".format(time.time()-start))
+	# start = time.time()
+	absRv = np.abs(rv)
+	dist = absRv[:,:,:,0] + absRv[:,:,:,1]
+	# print(dist.shape)
+	# dist = np.sum(np.abs(rv),axis=-1)
+	# dist = ((rv**2).sum(-1))
+	# print("dist:{}".format(dist.shape))
+	# print("dist time:{}".format(time.time()-start))
+	# start = time.time()
+	index = np.argpartition(dist, K,axis=-1)
+	# print(index.shape)
+	# print("apart time:{}".format(time.time()-start))
+	# start = time.time()
+	index = index[:,:,:K]
+	index = np.expand_dims(index,axis=-1)
+	index = index.repeat(2,axis=-1)
+	# print("indexshape{}".format(index.shape))
+	rv = rv[np.arange(numTraj)[:,None,None,None],
+			np.arange(numSquence)[None,:,None,None],
+			index,
+			np.arange(2)[None,None,None,:]]
+	# print("rv time:{}".format(time.time()-start))
+
+	# print("rvshape:{}".format(rv.shape))
+	# t=input()
+	# print("indexshape{}".format(index.shape))
+	# rv = rv.gather(dim=2,index=index)
+	# print("rvshapelater:{}".format(rv.shape))
+	# t=input()
+	return rv
+
+
 def sampleIndex(mat, N):
-    xy = np.random.choice(range(mat.size), size=N, p=mat.flatten())
+    xy = np.random.choice(range(mat.size), size=N,replace=True, p=mat.flatten())
     return np.unravel_index(xy, mat.shape)
 
 def choiceIndex(mat, index, outMat,N):
