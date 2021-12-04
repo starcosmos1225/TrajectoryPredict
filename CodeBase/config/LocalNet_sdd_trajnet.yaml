@@ -1,5 +1,5 @@
 experiment_name: 'LocalNet_sdd_trajnet' 
-device: 'cpu'
+device: 'cuda:0'
 
 # MODEL
 model:
@@ -31,7 +31,7 @@ dataset:
   
   # env info
   env_type: 'local' # rv or local or default(use semantic image)
-  crop_size: 94 # the local image size
+  crop_size: 144 # the local image size
 
   # data info
   resize: 0.5

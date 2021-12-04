@@ -46,21 +46,23 @@ class CVAEDoubleMLP(nn.Module):
     def forward(self, obs, otherInp=None,extraInfo=None,params=None):
         
         device = params.device
-        obsVel,gtPredVel = otherInp[0], otherInp[2]
+        obsVel = otherInp[0]
         mean, std = extraInfo
         inp=(obsVel-mean)/std
-        vel = (gtPredVel - mean)/std
         # inp = obs - obs[:,:1,:]
         # vel = otherInp[0]
         # vel = vel - obs[:,:1,:]
         predLength = params.dataset.pred_len
         # inp (batch, s, 2) -> (batch,s, hiddensize)
         obsFeat = self.obsEncoder(inp)[:,-1,:]
-        predFeat = self.predEncoder(vel)[:,-1,:]
+        
 
         if self.training:
             # create z noise
             # (batch 2* hiddensize)
+            gtPredVel =  otherInp[2]
+            vel = (gtPredVel - mean)/std
+            predFeat = self.predEncoder(vel)[:,-1,:]
             noiseInp = torch.cat((obsFeat, predFeat),dim=1)
             noiseZ = self.noiseEncoder(noiseInp)
             mu = noiseZ[:, 0:self.zSize] 

@@ -4,7 +4,8 @@ from .sampler import CustomSampler, intervalSampler
 from .datasets.SceneDataset import SceneDataset
 from .datasets.TrajDataset import TrajDataset
 from .ExtraInfo import inputTemplate, datasetMeanStd, constantFactor
-from .collate_fn import scene_collate,traj_collate, PECtraj_collate
+from .collate_fn import scene_collate,traj_collate, \
+    PECtraj_collate, future_collate
 datasetDict = {
     'scene_dataset': SceneDataset,
     'traj_dataset': TrajDataset,
@@ -18,6 +19,7 @@ collateDict = {
     'scene_collate': scene_collate,
     'traj_collate': traj_collate,
     'PECtraj_collate': PECtraj_collate,
+    'future_collate': future_collate
 }
 
 extraDict = {

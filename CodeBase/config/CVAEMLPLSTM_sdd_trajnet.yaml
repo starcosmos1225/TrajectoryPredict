@@ -59,7 +59,7 @@ dataset:
   segmentation_model_fp: ''
   semantic_classes: ''
   use_features_only: False  # If True the segmentation model only uses the
-
+  initTrajectoryModelFilePath: ''
   #Sampler
   sampler: 
     name: 'custom' # custom or interval

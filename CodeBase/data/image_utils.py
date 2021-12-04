@@ -59,10 +59,12 @@ def getPatch(template, traj, H, W):
 	x_up = template.shape[1] // 2 + W - x
 	y_low = template.shape[0] // 2 - y
 	y_up = template.shape[0] // 2 + H - y
-	# print(type(x_low))
-	# print("xlow:{}".format(x_low.shape))
+	# print(y_up>H)
+	# print(x_up>W)
+
 	patch = [template[y_l:y_u, x_l:x_u] for x_l, x_u, y_l, y_u in zip(x_low, x_up, y_low, y_up)]
 	# print("get path inner:{}".format(time.time()-start))
+	# print(patch[0].shape)
 	return patch
 
 
@@ -105,6 +107,8 @@ def pad(images, divisionFactor=32):
 		im = cv2.copyMakeBorder(im, 0, H_new - H, 0, W_new - W, cv2.BORDER_CONSTANT)
 		images[key] = im
 
+
+
 def image2world(image_coords, scene, homo_mat, resize):
 	traj_image2world = image_coords.clone()
 	if traj_image2world.dim() == 4:
@@ -129,9 +133,9 @@ def to_shape(a, shape):
 	_, y, x = a.shape
 	y_pad = (y_-y)
 	x_pad = (x_-x)
-	return np.pad(a,((0,0),(y_pad//2, y_pad//2 + y_pad%2), 
-                     (x_pad//2, x_pad//2 + x_pad%2)),
-                  mode = 'constant')
+	return np.pad(a,((0,0),(y_pad//2, y_pad//2 + y_pad%2),
+					(x_pad//2, x_pad//2 + x_pad%2)),
+				mode = 'constant')
 
 def croplocalImage(image, traj, size):
 	'''
@@ -166,6 +170,7 @@ def croplocalImage(image, traj, size):
 
 
 
+
 def nearestRelativeVector(image, traj, num_samples=512):
 	'''
 	for i: num_traj
@@ -184,40 +189,21 @@ def nearestRelativeVector(image, traj, num_samples=512):
 	# t=input()
 	clippedImage = np.where(image<0.95,zeros,image)
 	rv = []
-	# nonzeroVector = []
-	# maxlength = 0
-	# print("clipe time:{}".format(time.time()-start))
-	# start=time.time()
+
 	for i in range(C):
 		nonzero = np.transpose(clippedImage[i].nonzero())
 		if nonzero.shape[0]>20000:
 			idx = np.random.randint(nonzero.shape[0],size=20000)
 			nonzero = nonzero[idx,:]
-		# print(nonzero.shape)
-		# t=input()
-		# maxlength = max(nonzero.shape[0],maxlength)
-		# print(nonzero.shape)
 		
 		if nonzero.shape[0] == 0:
 			nonzero = np.ones((num_samples+1,2))*4098
 		else:
 			if nonzero.shape[0] < num_samples:
 				nonzero = np.repeat(nonzero,num_samples//nonzero.shape[0]+1,axis=0)
-		# nonzeroVector.append(nonzero)
-	# for i in range(C):
-	# 	nonzeroVector[i] = np.pad(nonzeroVector[i],
-	# 								((0,maxlength-nonzeroVector[i].shape[0]),(0,0)),
-	# 								'constant',
-	# 								constant_values=4098)
-	# nonzeroVector = np.asarray(nonzeroVector)
-	# print(nonzeroVector.shape)
-		# print("non zero time:{}".format(time.time()-start))
-		# start=time.time()
 		nearestVector = nearestKindex(nonzero, traj, K=num_samples)
 		rv.append(nearestVector)
-		# print("nearest time:{}".format(time.time()-start))
-		# start=time.time()
-	# 	rv.append(nearestVector)
+
 	rv = np.array(rv).transpose(1,2,0,3,4)
 	return rv
 
@@ -250,7 +236,3 @@ def mapToRelativeVector(image, traj, num_samples=512):
 	relativeVector = samples - tileTraj
 	return relativeVector
 
-if __name__=='__main__':
-	a = np.ones((6,200,240))
-	n = to_shape(a,(255,255))
-	print(n.shape)

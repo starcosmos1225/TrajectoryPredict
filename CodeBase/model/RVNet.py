@@ -2,10 +2,11 @@ import torch
 from torch import nn
 from .transformer.multihead_attention import MultiHeadAttention
 from .transformer.pointerwise_feedforward import PointerwiseFeedforward
-from .transformer.encoder_decoder import EncoderDecoder
+# from .transformer.encoder_decoder import EncoderDecoder
+from .transformer.positional_encoding import PositionalEncoding
 from .transformer.encoder import Encoder
 from .transformer.encoder_layer import EncoderLayer
-from .backbone.Linear import MLP, ResMLP
+from .backbone.Linear import MLP, LinearEmbedding, ResMLP
 from .backbone.NonOrderNet import NonOrderNet
 from .backbone.resnet1d import resnet1d_18
 import copy
@@ -91,18 +92,11 @@ class RVNetConv1d(nn.Module):
     def __init__(self, 
                 pred_len,
                 kernel_size = 65,
+                width_per_layer=[64,128,256,512]
                 ):
-        # num_classes,
-        # in_channels=3,
-        # kernel_size=64,
-        # width_per_layer = [64,128,256,512],
-        # zero_init_residual=False,
-        # groups= 1,
-        # width_per_group = 64,
-        # replace_stride_with_dilation= None,
-        # norm_layer= None,
         super(RVNetConv1d, self).__init__()
-        self.baseFeat = resnet1d_18(in_channels=pred_len, num_classes=pred_len*2, kernel_size=kernel_size)
+        self.baseFeat = resnet1d_18(in_channels=pred_len, num_classes=pred_len*2, kernel_size=kernel_size,
+                                        width_per_layer=width_per_layer)
         
     def forward(self, obs, otherInp, extraInp, params):
         _,_,_,relativeVector,initTraj = otherInp
@@ -134,7 +128,8 @@ class RVNetTransformer(nn.Module):
                 dropout=0.1,
                 encoder_layer=6,
                 use_transformer=True,
-                use_nonOrder=True
+                use_nonOrder=True,
+                use_MLP=True
                 ):
         super(RVNetTransformer, self).__init__()
         h = num_heads
@@ -143,8 +138,13 @@ class RVNetTransformer(nn.Module):
         c = copy.deepcopy
         attn = MultiHeadAttention(h, d_model)
         ff = PointerwiseFeedforward(d_model, d_ff, dropout)
+        self.position = PositionalEncoding(d_model, dropout)
         self.transformerEncoder = Encoder(EncoderLayer(d_model, c(attn), c(ff), dropout), encoder_layer)
-        self.decoder = MLP(d_model*pred_len,pred_len*2,pred_feat)
+        self.use_MLP = use_MLP
+        if self.use_MLP:
+            self.decoder = MLP(d_model*pred_len,pred_len*2,pred_feat)
+        else:
+            self.decoder = LinearEmbedding(d_model, 2)
         self.useTransformer = use_transformer
         self.useNonOrder = use_nonOrder
         if not self.useNonOrder:
@@ -154,7 +154,7 @@ class RVNetTransformer(nn.Module):
                 nn.init.xavier_uniform_(p)
 
     def forward(self, obs, otherInp, extraInp, params):
-        _,_,_,relativeVector,initTraj = otherInp
+        _,_,_,relativeVector,initTraj,_ = otherInp
         # if self.training:
         #     return initTraj.permute(1,0,2,3) , None
         # else:
@@ -169,9 +169,13 @@ class RVNetTransformer(nn.Module):
         feat = self.nonOrder(relativeVector)  
         if self.useTransformer:
             feat = feat.view(b*numTraj, predLength, -1)
+            feat = self.position(feat)
             feat = self.transformerEncoder(feat, None)
-        feat = feat.view(b,numTraj, -1)
-        feat = self.decoder(feat)
+        if self.use_MLP:
+            feat = feat.view(b*numTraj, -1)
+            feat = self.decoder(feat)
+        else:
+            feat = self.decoder(feat)
         delta = feat.view(b, numTraj, predLength,2)
         pred = initTraj.detach() + delta
         pred = pred.permute(1,0,2,3)

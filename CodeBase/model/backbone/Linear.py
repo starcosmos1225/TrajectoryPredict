@@ -30,7 +30,8 @@ class MLP(nn.Module):
             self.activation = nn.ReLU()
         elif activation == 'sigmoid':
             self.activation = nn.Sigmoid()
-
+        elif activation == 'tanh':
+            self.activation = nn.Tanh()
         self.sigmoid = nn.Sigmoid() if discrim else None
         self.dropout = dropout
 

@@ -8,6 +8,7 @@ model:
   save_name: 'RVNetConv1d'
   kwargs:
     pred_len: 12
+    width_per_layer: [16,32,64,128]
     
   # loss
   loss_function: 
@@ -27,7 +28,7 @@ dataset:
   val_image_path: '../dataset/SDD/test'
   test_data_path: '../dataset/SDD/test_trajnet.pkl'
   test_image_path: '../dataset/SDD/test'
-  
+  env_type: 'rv'
   # data info
   resize: 0.5
   batch_size: 4

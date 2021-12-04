@@ -49,7 +49,7 @@ def trainModel(params, trainDataLoader,valDataLoader,model,optimizer, lossFuncti
                         # start = time()
 
                         optimizer.zero_grad()
-                        # loss.backward()
+                        loss.backward()
                         optimizer.step()
                         # logger.info("backward time:{}".format(time()-start))
                         # start = time()
@@ -69,7 +69,10 @@ def trainModel(params, trainDataLoader,valDataLoader,model,optimizer, lossFuncti
                                 # logger.info("pred:{}".format(pred[:,-1:]))
                                 # logger.info(((((gt[:, -1:] - pred[:,-1:]) / params.dataset.resize) ** 2).sum(dim=2) ** 0.5).mean(dim=0))
                                 # t=input()
-                                
+                                # print(gt)
+                                # t=input()
+                                # print(pred)
+                                # t=input()
                                 train_FDE.append(((((gt[:, -1:].unsqueeze(0) - pred[:, :,-1:,:]) / params.dataset.resize) ** 2).sum(dim=3) ** 0.5).min(dim=0)[0])
                                 train_ADE.append(((((gt.unsqueeze(0) - pred) / params.dataset.resize) ** 2).sum(dim=3) ** 0.5).mean(dim=2).min(dim=0)[0])
                                 # train_ADE.a/ppend(((((gt - pred) / params.dataset.resize) ** 2).sum(dim=2) ** 0.5).mean(dim=0))

@@ -27,19 +27,23 @@ logger = logging.getLogger(__name__)
 def main(params):
     # torch.autograd.set_detect_anomaly(True)
     trainDataLoader, valDataLoader = createDataLoader(params.dataset)
-    # for idx, infos in enumerate(trainDataLoader):
+    # for idx, infos in enumerate(testDataLoader):
+    #     print("\r {}/{}".format(idx,len(testDataLoader)))
     #     obs, gt,  otherInp = infos
     #     logger.info("obs:{}".format(obs.shape))
     #     logger.info("gt:{}".format(gt.shape))
-    #     frames, seq_start, dataset, peds = otherInp
-    #     logger.info("frames:{}".format(frames))
-    #     logger.info("seq_start:{}".format(seq_start))
-    #     logger.info("dataset:{}".format(dataset))
-    #     logger.info("peds:{}".format(peds))
-        # logger.info("observemap:{}".format(otherInp[0].shape))
-        # logger.info("gtFutre:{}".format(otherInp[1].shape))
-        # logger.info("waypoint:{}".format(otherInp[2].shape))
-        # logger.info("semantic:{}".format(otherInp[3].shape))
+    #     gtFutureMap,semanticMap,initTraj = otherInp
+    #     # logger.info("observedMap:{}".format(observedMap.shape))
+    #     logger.info("gtFutureMap:{}".format(gtFutureMap.shape))
+    #     # logger.info("gtWaypointMap:{}".format(gtWaypointMap.shape))
+    #     logger.info("semanticMap:{}".format(semanticMap.shape))
+    #     logger.info("initTraj:{}".format(initTraj.shape))
+    #     t=input()
+    #     logger.info("observemap:{}".format(otherInp[0].shape))
+    #     logger.info("gtFutre:{}".format(otherInp[1].shape))
+    #     logger.info("waypoint:{}".format(otherInp[2].shape))
+    #     logger.info("semantic:{}".format(otherInp[3].shape))
+    # return
     model = model_dict[params.model.name](**params.model.kwargs)
     if params.model.pretrain !='' and os.path.exists(params.model.pretrain):
         model.load_state_dict(torch.load(params.model.pretrain))

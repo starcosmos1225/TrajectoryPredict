@@ -5,7 +5,7 @@ import numpy as np
 
 def inputTemplate(params,dataLoaders):
     device = params.device
-    size = int(4200* params.dataset.resize)
+    size = int(6200* params.dataset.resize)
     inputTemplate = createDistMat(size=size)
     inputTemplate = torch.from_numpy(inputTemplate).float().to(device)
     return inputTemplate

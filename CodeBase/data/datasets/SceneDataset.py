@@ -75,7 +75,7 @@ class SceneDataset(Dataset):
 		pad(images, divisionFactor=params.division_factor)  # make sure that image shape is divisible by 32, for UNet segmentation
 		preprocessImageForSegmentation(images, segMask=segMask)
         # Create template
-		size = int(4200 * params.resize)
+		size = int(6200 * params.resize)
 
 		inputTemplate = createDistMat(size=size)
 		inputTemplate = torch.Tensor(inputTemplate)
@@ -110,10 +110,12 @@ class SceneDataset(Dataset):
 		self.sceneImage = {}
 		self.initTrajModel = initTrajModel
 		self.num_traj = params.num_traj
-		self.num_points = params.num_points
+		
 		self.env_type = params.env_type
 		if self.env_type =='local':
 			self.crop_size = params.crop_size
+		elif self.env_type=='rv':
+			self.num_points = params.num_points
 		if self.initTrajModel is not None:
 			self.initTrajModel.eval()
 		
@@ -134,66 +136,50 @@ class SceneDataset(Dataset):
 				modename = 'test' if mode!='train' else mode
 				# relativeVectorName = os.path.join('temp','{}_{}_{}_{}.npy'.format('rv',initmodelname,dataname,modename))
 				initTrajName = os.path.join('temp','{}_{}_{}_{}.npy'.format('traj',initmodelname,dataname,modename))
-				# if os.path.exists(relativeVectorName):
-				# 	self.relativeVectorList = np.load(relativeVectorName)
-				# else:
-				# 	self.relativeVectorList = None
 				if os.path.exists(initTrajName):
 					self.initTrajList = np.load(initTrajName)
 					# self.relativeVectorList = np.load(relativeVectorName)
 				else:
 					length = len(self.trajectories)
-					# self.manager = Manager
-
 					self.initTrajList = [0 for _ in range(length)]
-					# self.relativeVectorList = self.manager().list()
-					# for _ in range(length):
-					# 	# self.initTrajList.append(0)
-					# 	self.relativeVectorList.append(0)
-					traj_params = {
-						'device': 'cpu',
-						'num_points': params.num_points,
-						'dataset':{
-							'pred_len': self.predLength,
-							'num_traj':  self.num_traj
+					if 'DoubleMLP' in params.initTrajectoryModelFilePath:
+						traj_params = {
+							'device': 'cpu',
+							'dataset':{
+								'pred_len': self.predLength,
+								'num_traj':  self.num_traj
+							}
 						}
-					}
-					traj_params = EasyDict(traj_params)
-					for idx in tqdm(range(length),desc='cal init traj'):
-						obs = self.trajectories[idx,:self.obsLength,:]
-						obs = torch.from_numpy(obs)
-						with torch.no_grad():
-							initTraj = self.initTrajModel(obs.unsqueeze(0),params=traj_params)
-						self.initTrajList[idx] = initTraj.squeeze(1).detach().numpy()
-					# index = np.arange(length)
-					# num_process = 8
-					# size = length // num_process
-					# threads = []
-					
-					# for i in range(num_process):
-					# 	if i!=num_process-1:
-					# 		index_i = index[i*size: (i+1)*size]
-					# 	else:
-					# 		index_i = index[i*size:]
-						# t_model = copy.deepcopy(initTrajModel)
-					# 	t = Process(target=self.computeRelativeVector,
-					# 				args=(
-					# 					  traj_params,
-					# 					  index_i,
-					# 				   	  i))
-					# 	t.start()
-					# 	threads.append(t)
-					# for t in threads:
-					# 	t.join()
-
-					# self.relativeVectorList = np.asarray(self.relativeVectorList)
+						mean = torch.tensor([0.0316,-0.3028])
+						var = torch.tensor([5.888,3.5717])
+						traj_params = EasyDict(traj_params)
+						for idx in tqdm(range(length),desc='cal init traj'):
+							obs = self.trajectories[idx,:self.obsLength,:2]
+							vel = self.trajectories[idx,:self.obsLength,2:]
+							obs = torch.from_numpy(obs).float()
+							vel = torch.from_numpy(vel).float()
+							with torch.no_grad():
+								initTraj = self.initTrajModel(obs.unsqueeze(0),[vel.unsqueeze(0)], [mean, var], params=traj_params)
+							self.initTrajList[idx] = initTraj.squeeze(1).detach().numpy()
+					elif 'PEC' in params.initTrajectoryModelFilePath:
+						traj_params = {
+							'device': 'cpu',
+							# 'num_points': params.num_points,
+							'dataset':{
+								'pred_len': self.predLength,
+								'num_traj':  self.num_traj
+							}
+						}
+						traj_params = EasyDict(traj_params)
+						for idx in tqdm(range(length),desc='cal init traj'):
+							obs = self.trajectories[idx,:self.obsLength,:2]
+							obs = torch.from_numpy(obs).float()
+							with torch.no_grad():
+								initTraj = self.initTrajModel(obs.unsqueeze(0),params=traj_params)
+							self.initTrajList[idx] = initTraj.squeeze(1).detach().numpy()
 					self.initTrajList = np.array(self.initTrajList)
-
-					# np.save(relativeVectorName, self.relativeVectorList)
 					np.save(initTrajName, self.initTrajList)
 					
-				
-	
 	def __len__(self):
 		return len(self.trajectories)
 
@@ -215,10 +201,11 @@ class SceneDataset(Dataset):
 			
 	def __getitem__(self, idx):
 		obsLength = self.obsLength
+		predLength = self.predLength
 		trajectory = self.trajectories[idx]
 		# print("trajectory:{}".format(trajectory.shape))
-		obs = trajectory[:obsLength,:]
-		gtFuture = trajectory[obsLength:,:]
+		obs = trajectory[:obsLength,:2]
+		gtFuture = trajectory[obsLength:,:2]
 		
 		scene = self.scene_list[idx]
 		_, _, H, W = self.sceneImage[scene].shape
@@ -240,8 +227,8 @@ class SceneDataset(Dataset):
 		semanticMap = self.sceneImage[scene].view(-1,H, W) 
 
 		info = {
-			'obs': torch.from_numpy(obs),
-			'pred': torch.from_numpy(gtFuture)
+			'obs': torch.from_numpy(obs).float(),
+			'pred': torch.from_numpy(gtFuture).float()
 		}
 		otherinfo = {
 			'observedMap': observedMap,
@@ -261,10 +248,23 @@ class SceneDataset(Dataset):
 			# else:
 			if self.env_type == 'rv':
 				envInfo = nearestRelativeVector(semanticMap.detach().numpy(), initTraj, self.num_points)
+				otherinfo['semanticMap'] = torch.from_numpy(envInfo).float()
+				otherinfo['initTraj'] = torch.from_numpy(self.initTrajList[idx]).float()
 			elif self.env_type == 'local':
 				envInfo = croplocalImage(semanticMap.detach().numpy(), initTraj,self.crop_size)
-			otherinfo['initTraj'] = torch.from_numpy(self.initTrajList[idx]).float()
-			otherinfo['semanticMap'] = torch.from_numpy(envInfo).float()
+				otherinfo['semanticMap'] = torch.from_numpy(envInfo).float()
+				otherinfo['initTraj'] = torch.from_numpy(self.initTrajList[idx]).float()
+			elif self.env_type == 'future':
+				traj = initTraj.reshape(-1, 2)
+				# print("traj")
+				# print(traj.shape)
+				trajMap = getPatch(self.inputTemplate, traj, H, W)
+				# print("tramap")
+				# print(trajMap[0].shape)
+				trajMap = torch.stack(trajMap).reshape([-1,predLength, H, W])
+				otherinfo['initTraj'] = trajMap
+			
+			
 		res = info.copy()
 		res.update(otherinfo)
 		# print("device:{}".format(self.device))
@@ -300,24 +300,27 @@ class SceneDataset(Dataset):
 		scene = []
 		for traj,m,s in zip(trajectoriesList,metaList,sceneList):
 			for i in range(traj.shape[0]):
-				trajectory.append(traj[i])
+				speed = np.concatenate((np.zeros((1,2)),traj[i][1:] - traj[i][ :-1]),0)
+				traj_i =np.concatenate((traj[i],speed),1)
+				trajectory.append(traj_i)
 				meta.append(m)
 				scene.append(s)
+        
 		return np.array(trajectory),  scene
 
-def scene_collate(batch):
-	obs = []
-	gt = []
-	observedMap = []
-	gtFutureMap = []
-	gtWaypointMap = []
-	semanticMap = []
-	for _batch in batch:
-		obs.append(_batch[0])
-		gt.append(_batch[1])
-		observedMap.append(_batch[2])
-		gtFutureMap.append(_batch[3])
-		gtWaypointMap.append(_batch[4])
-		semanticMap.append(_batch[5])
-	return torch.stack(obs),torch.stack(gt),\
-		[torch.stack(observedMap),torch.stack(gtFutureMap), torch.stack(gtWaypointMap), torch.stack(semanticMap)]
+# def scene_collate(batch):
+# 	obs = []
+# 	gt = []
+# 	observedMap = []
+# 	gtFutureMap = []
+# 	gtWaypointMap = []
+# 	semanticMap = []
+# 	for _batch in batch:
+# 		obs.append(_batch[0])
+# 		gt.append(_batch[1])
+# 		observedMap.append(_batch[2])
+# 		gtFutureMap.append(_batch[3])
+# 		gtWaypointMap.append(_batch[4])
+# 		semanticMap.append(_batch[5])
+# 	return torch.stack(obs),torch.stack(gt),\
+# 		[torch.stack(observedMap),torch.stack(gtFutureMap), torch.stack(gtWaypointMap), torch.stack(semanticMap)]

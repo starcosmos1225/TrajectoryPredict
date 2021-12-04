@@ -1,6 +1,7 @@
 import torch
 from torch.nn import BCEWithLogitsLoss
 import torch.nn.functional as F
+
 class GoalTrajLoss:
 
     def __init__(self,loss_scale):
@@ -18,6 +19,12 @@ class GoalTrajLoss:
             # goalLoss = self.lossFuncGoal(predGoalMap,gtWaypointMap) * self.lossScale
         else:
             goalLoss = 0.0
+        # if len(gtFutureMap.shape) != len(predTrajMap.shape):
+        # print(gtFutureMap.shape)
+        # print(predTrajMap.shape)
+        # t=input()
+        if gtFutureMap.shape[0]!= predTrajMap.shape[0]:
+            gtFutureMap = gtFutureMap.repeat(predTrajMap.shape[0]//gtFutureMap.shape[0],1,1,1)
         trajLoss = self.lossFunc(predTrajMap,gtFutureMap) * self.lossScale
         # print("goalLoss:{} trajLoss:{}".format(goalLoss, trajLoss))
         return goalLoss + trajLoss
@@ -84,9 +91,33 @@ class VarietyLoss:
         index = torch.argmin(dist2,dim=0,keepdim=True)
         index = index.repeat(1,1,predLength,2)
         bestTraj = pred.gather(0,index)
-        
+
         return self.lossFunc(bestTraj,gt)
         
+class SceneCVAELoss:
+    def __init__(self, traj_weight=1.0, kld_weight=1.0, learning_weight=1.0):
+        self.trajWeight = traj_weight
+        self.kldWeight = kld_weight
+        self.learningWeight = learning_weight
+        self.lossFunc = F.mse_loss
+
+    def __call__(self,pred,gt, otherInp, otherOut, extraInfo):
+        mean, logVar = otherOut['mean'], \
+                                  otherOut['var']
+        
+        kldLoss = -0.5 * torch.sum(1 + logVar - mean.pow(2) - logVar.exp())
+        
+        assert gt.shape[0] ==1
+        if pred.shape[0] != gt.shape[0]:
+            gt = gt.repeat(pred.shape[0],1,1,1)
+        trajLoss = self.lossFunc(gt, pred)
+        if 'student' in otherOut:
+            studentFeat = otherOut['student']
+            teacherFeat = otherOut['teacher']
+            learnLoss = self.lossFunc(studentFeat, teacherFeat)
+        else:
+            learnLoss = 0.0
+        return trajLoss*self.trajWeight + kldLoss* self.kldWeight + learnLoss * self.learningWeight
 
 class TrajCVAELoss:
     def __init__(self, traj_weight=1.0, kld_weight=1.0, rcl_weight=1.0):

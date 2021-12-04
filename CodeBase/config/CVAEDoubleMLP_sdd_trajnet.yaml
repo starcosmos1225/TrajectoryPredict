@@ -4,7 +4,7 @@ device: 'cpu'
 # MODEL
 model:
   name: 'CVAEDoubleMLP'
-  pretrain: ''
+  pretrain: 'trained_models/CVAEDoubleMLP_sdd.pth'
   save_name: 'CVAEDoubleMLP_sdd'
   kwargs:
     pred_len: 12
@@ -41,10 +41,10 @@ dataset:
   val_image_path: '../dataset/SDD/test'
   test_data_path: '../dataset/SDD/test_trajnet.pkl'
   test_image_path: '../dataset/SDD/test'
-
+  env_type: ''
   # data info
   # data_scale: 170
-  resize: 1.86
+  resize: 0.5
   batch_size: 128
   obs_len: 8
   pred_len: 12
@@ -60,7 +60,7 @@ dataset:
   segmentation_model_fp: ''
   semantic_classes: ''
   use_features_only: False  # If True the segmentation model only uses the
-
+  initTrajectoryModelFilePath: ''
   #Sampler
   sampler: 
     name: 'custom' # custom or interval

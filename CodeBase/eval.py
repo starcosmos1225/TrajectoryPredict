@@ -26,20 +26,21 @@ logger = logging.getLogger(__name__)
 def main(params):
     testDataLoader = createDataLoader(params.dataset,type='test')
     # for idx, infos in enumerate(testDataLoader):
+    #     print("\r {}/{}".format(idx,len(testDataLoader)))
     #     obs, gt,  otherInp = infos
     #     logger.info("obs:{}".format(obs.shape))
     #     logger.info("gt:{}".format(gt.shape))
-    #     observedMap,gtFutureMap,gtWaypointMap,semanticMap,initTraj = otherInp
-    #     logger.info("observedMap:{}".format(observedMap.shape))
+    #     gtFutureMap,semanticMap,initTraj = otherInp
+    #     # logger.info("observedMap:{}".format(observedMap.shape))
     #     logger.info("gtFutureMap:{}".format(gtFutureMap.shape))
-    #     logger.info("gtWaypointMap:{}".format(gtWaypointMap.shape))
+    #     # logger.info("gtWaypointMap:{}".format(gtWaypointMap.shape))
     #     logger.info("semanticMap:{}".format(semanticMap.shape))
     #     logger.info("initTraj:{}".format(initTraj.shape))
     #     t=input()
-    #     # logger.info("observemap:{}".format(otherInp[0].shape))
-    #     # logger.info("gtFutre:{}".format(otherInp[1].shape))
-    #     # logger.info("waypoint:{}".format(otherInp[2].shape))
-    #     # logger.info("semantic:{}".format(otherInp[3].shape))
+    #     logger.info("observemap:{}".format(otherInp[0].shape))
+    #     logger.info("gtFutre:{}".format(otherInp[1].shape))
+    #     logger.info("waypoint:{}".format(otherInp[2].shape))
+    #     logger.info("semantic:{}".format(otherInp[3].shape))
     # return
     model = model_dict[params.model.name](**params.model.kwargs)
     if params.model.pretrain !='' and os.path.exists(params.model.pretrain):

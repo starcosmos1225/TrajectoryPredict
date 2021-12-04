@@ -5,3 +5,5 @@ CodeBase/segmentation_models/
 *.pth
 *.pt
 *.npy
+*.pyc
+*.log

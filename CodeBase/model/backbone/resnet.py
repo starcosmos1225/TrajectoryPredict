@@ -151,6 +151,7 @@ class ResNet(nn.Module):
         block,
         layers,
         num_classes=1000,
+        another_classes=-1,
         in_channels=3,
         width_per_layer = [64,128,256,512],
         zero_init_residual=False,
@@ -177,6 +178,7 @@ class ResNet(nn.Module):
             )
         self.groups = groups
         self.base_width = width_per_group
+        self.another_classes = another_classes
         self.conv1 = nn.Conv2d(in_channels, self.inplanes, kernel_size=7, stride=2, padding=3, bias=False)
         self.bn1 = norm_layer(self.inplanes)
         self.relu = nn.ReLU(inplace=True)
@@ -186,8 +188,9 @@ class ResNet(nn.Module):
         self.layer3 = self._make_layer(block, width_per_layer[2], layers[2], stride=2, dilate=replace_stride_with_dilation[1])
         self.layer4 = self._make_layer(block, width_per_layer[3], layers[3], stride=2, dilate=replace_stride_with_dilation[2])
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.fc = nn.Linear(512 * block.expansion, num_classes)
-
+        self.fc = nn.Linear(width_per_layer[3] * block.expansion, num_classes)
+        if another_classes>0:
+            self.other_fc = nn.Linear(width_per_layer[3] * block.expansion, another_classes)
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
                 nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
@@ -260,8 +263,26 @@ class ResNet(nn.Module):
 
         x = self.avgpool(x)
         x = torch.flatten(x, 1)
-        x = self.fc(x)
+        out = self.fc(x)
+        if self.another_classes>0:
+            another_out = self.other_fc(x)
+            return out,another_out
+        return out
+    
+    def getFeat(self, x,before=False):
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.maxpool(x)
 
+        x = self.layer1(x)
+        x = self.layer2(x)
+        x = self.layer3(x)
+        x = self.layer4(x)
+        if before:
+            return x
+        x = self.avgpool(x)
+        x = torch.flatten(x, 1)
         return x
 
     def forward(self, x: Tensor) -> Tensor:

@@ -17,8 +17,9 @@ model:
     d_ff: 2048
     dropout: 0.1
     encoder_layer: 6
-    use_transformer: True
-    use_nonOrder: True
+    use_transformer: False
+    use_nonOrder: False
+    use_MLP: True
     
   # loss
   loss_function: 
@@ -38,7 +39,9 @@ dataset:
   val_image_path: '../dataset/SDD/test'
   test_data_path: '../dataset/SDD/test_trajnet.pkl'
   test_image_path: '../dataset/SDD/test'
-  
+   # env info
+  env_type: 'rv' # rv or local or default(use semantic image)
+  crop_size: 94 # the local image size
   # data info
   resize: 0.5
   batch_size: 4
@@ -54,7 +57,7 @@ dataset:
   waypoints: [11]
   # For semantic map
   segmentation_model_fp: segmentation_models/SDD_segmentation.pth
-  initTrajectoryModelFilePath: init_models/PECNet_sdd0.5.pt
+  initTrajectoryModelFilePath: init_models/DoubleMLP_sdd0.5.pt
   num_points: 64
   semantic_classes: 6
   use_features_only: False  # If True the segmentation model only uses the
@@ -74,7 +77,7 @@ dataset:
 optim:
   name: 'Adam'
   kwargs:
-    lr: 0.00001
+    lr: 0.0001
   # learning_rate: 0.0001
   num_epochs: 100
 

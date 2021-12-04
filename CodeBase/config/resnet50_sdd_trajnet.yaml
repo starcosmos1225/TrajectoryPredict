@@ -4,7 +4,7 @@ device: 'cuda:0'
 # MODEL
 model:
   name: 'resnetTraj'
-  pretrain: 'trained_models/resnet50_sdd_short.pth'
+  pretrain: ''
   save_name: 'resnet50_sdd_short'
   kwargs:
     obs_len: 8
@@ -33,6 +33,7 @@ dataset:
   test_data_path: '../dataset/SDD/test_trajnet.pkl'
   test_image_path: '../dataset/SDD/test'
 
+  env_type: ''
   # data info
   resize: 0.25
   batch_size: 4
@@ -50,6 +51,7 @@ dataset:
   segmentation_model_fp: segmentation_models/SDD_segmentation.pth
   semantic_classes: 6
   use_features_only: False  # If True the segmentation model only uses the
+  initTrajectoryModelFilePath: ''
 
   #Sampler
   sampler: 
